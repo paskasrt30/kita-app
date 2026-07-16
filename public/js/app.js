@@ -1,0 +1,1727 @@
+// ============================================
+// STATE & KONFIGURASI
+// ============================================
+const API_BASE = '/api';
+let state = {
+    token: localStorage.getItem('token') || null,
+    user: JSON.parse(localStorage.getItem('user') || 'null'),
+    accounts: []
+};
+
+const KATEGORI_LABELS = {
+    belanja_dapur: 'Belanja Dapur', makan_luar: 'Makan di Luar', listrik: 'Listrik',
+    air: 'Air', internet: 'Internet', bpjs: 'BPJS', asuransi: 'Asuransi',
+    cicilan: 'Cicilan', transportasi: 'Transportasi', bensin: 'Bensin',
+    pulsa: 'Pulsa', hiburan: 'Hiburan', pendidikan: 'Pendidikan',
+    kesehatan: 'Kesehatan', donasi: 'Donasi', pajak: 'Pajak', lainnya: 'Lainnya'
+};
+
+const SUMBER_LABELS = {
+    gaji_suami: 'Gaji Suami', gaji_istri: 'Gaji Istri', bonus: 'Bonus',
+    thr: 'THR', freelance: 'Freelance', investasi: 'Investasi',
+    hadiah: 'Hadiah', lainnya: 'Lainnya'
+};
+
+const TIPE_ICON = { bank: '🏦', ewallet: '📱', tunai: '💵', dana_darurat: '🛟', kas_rt: '🏠' };
+
+// ============================================
+// UTILITAS
+// ============================================
+function formatRupiah(nominal) {
+    return 'Rp ' + Number(nominal || 0).toLocaleString('id-ID');
+}
+
+function formatTanggal(dateStr) {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function todayISO() {
+    return new Date().toISOString().split('T')[0];
+}
+
+async function apiCall(endpoint, options = {}) {
+    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+
+    const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(data.message || 'Terjadi kesalahan');
+    }
+    return data;
+}
+
+// ============================================
+// NAVIGASI ANTAR HALAMAN
+// ============================================
+function showPage(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+    document.getElementById(pageId).classList.remove('hidden');
+}
+
+function navigateTo(pageId) {
+    showPage(pageId);
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.page === pageId);
+    });
+
+    if (pageId === 'page-dashboard') loadDashboard();
+    if (pageId === 'page-accounts') loadAccounts();
+    if (pageId === 'page-transactions') loadTransactions();
+    if (pageId === 'page-budgets') loadBudgets();
+    if (pageId === 'page-savings') loadSavings();
+    if (pageId === 'page-todos') loadTodos();
+    if (pageId === 'page-calendar') loadCalendar();
+    if (pageId === 'page-shopping') loadShopping();
+    if (pageId === 'page-bills') loadBills();
+    if (pageId === 'page-debts') loadDebts();
+    if (pageId === 'page-reports') loadReports();
+    if (pageId === 'page-transfers') loadTransfers();
+    if (pageId === 'page-stock') loadStock();
+    if (pageId === 'page-inventory') loadInventory();
+    if (pageId === 'page-services') loadServices();
+    if (pageId === 'page-documents') loadDocuments();
+    if (pageId === 'page-notes') loadNotes();
+    if (pageId === 'page-notifications') loadNotifications();
+    if (pageId === 'page-settings') loadSettings();
+}
+
+function openSheet(sheetId) {
+    document.getElementById(sheetId).classList.add('show');
+    // Set tanggal default ke hari ini untuk form yang punya field tanggal
+    const tanggalInputs = document.getElementById(sheetId).querySelectorAll('input[type="date"]');
+    tanggalInputs.forEach(input => { if (!input.value) input.value = todayISO(); });
+}
+
+function closeSheet(sheetId) {
+    document.getElementById(sheetId).classList.remove('show');
+}
+
+function closeSheetOnOverlay(event, sheetId) {
+    if (event.target.id === sheetId) closeSheet(sheetId);
+}
+
+// ============================================
+// AUTH: LOGIN
+// ============================================
+document.getElementById('form-login').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('login-error');
+    errorEl.classList.remove('show');
+
+    try {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+
+        const res = await apiCall('/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password })
+        });
+
+        state.token = res.data.token;
+        state.user = res.data.user;
+        localStorage.setItem('token', state.token);
+        localStorage.setItem('user', JSON.stringify(state.user));
+
+        afterLogin();
+
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('show');
+    }
+});
+
+// ============================================
+// AUTH: REGISTER
+// ============================================
+document.getElementById('form-register').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('register-error');
+    errorEl.classList.remove('show');
+
+    try {
+        const nama = document.getElementById('register-nama').value;
+        const email = document.getElementById('register-email').value;
+        const password = document.getElementById('register-password').value;
+
+        await apiCall('/auth/register', {
+            method: 'POST',
+            body: JSON.stringify({ nama, email, password })
+        });
+
+        // Setelah register, langsung login otomatis
+        const loginRes = await apiCall('/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password })
+        });
+
+        state.token = loginRes.data.token;
+        state.user = loginRes.data.user;
+        localStorage.setItem('token', state.token);
+        localStorage.setItem('user', JSON.stringify(state.user));
+
+        // Karena baru daftar, arahkan ke halaman hubungkan pasangan
+        showPage('page-connect-couple');
+
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('show');
+    }
+});
+
+// ============================================
+// HUBUNGKAN PASANGAN
+// ============================================
+document.getElementById('form-invite').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('connect-error');
+    const successEl = document.getElementById('connect-success');
+    errorEl.classList.remove('show');
+    successEl.classList.remove('show');
+
+    try {
+        const to_email = document.getElementById('invite-email').value;
+        await apiCall('/auth/couple/invite', {
+            method: 'POST',
+            body: JSON.stringify({ to_email })
+        });
+
+        successEl.textContent = `Undangan berhasil dikirim ke ${to_email}`;
+        successEl.classList.add('show');
+
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('show');
+    }
+});
+
+function skipCoupleConnect() {
+    afterLogin();
+}
+
+// ============================================
+// SETELAH LOGIN BERHASIL
+// ============================================
+function afterLogin() {
+    document.getElementById('bottom-nav').style.display = 'flex';
+    navigateTo('page-dashboard');
+    updateGreetingHeader();
+    checkNotifBadge();
+}
+
+function updateGreetingHeader() {
+    if (!state.user) return;
+
+    const hour = new Date().getHours();
+    const greeting = hour < 11 ? 'Selamat pagi 👋' : hour < 15 ? 'Selamat siang 👋' : hour < 18 ? 'Selamat sore 👋' : 'Selamat malam 👋';
+
+    document.getElementById('greeting-text').textContent = greeting;
+    document.getElementById('greeting-nama').textContent = state.user.nama.split(' ')[0];
+    document.getElementById('avatar-me').textContent = state.user.nama.charAt(0).toUpperCase();
+}
+
+// ============================================
+// DASHBOARD
+// ============================================
+async function loadDashboard() {
+    try {
+        const res = await apiCall('/dashboard');
+        const d = res.data;
+
+        document.getElementById('dash-total-saldo').textContent = formatRupiah(d.total_saldo);
+        document.getElementById('dash-pemasukan').textContent = formatRupiah(d.total_pemasukan_bulan_ini);
+        document.getElementById('dash-pengeluaran').textContent = formatRupiah(d.total_pengeluaran_bulan_ini);
+
+        // Todos
+        const todosEl = document.getElementById('dash-todos');
+        if (d.todos_hari_ini.length === 0) {
+            todosEl.innerHTML = '<div class="empty-state"><div class="emoji">✅</div><p>Belum ada tugas hari ini</p></div>';
+        } else {
+            todosEl.innerHTML = d.todos_hari_ini.map(t => `
+                <div class="list-item">
+                    <div class="list-item-icon" style="background:#F3EFF6;">📋</div>
+                    <div class="list-item-body">
+                        <div class="list-item-title">${t.judul}</div>
+                        <div class="list-item-subtitle">${t.nama_assigned || 'Belum ditugaskan'}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Bills
+        const billsEl = document.getElementById('dash-bills');
+        if (d.tagihan_jatuh_tempo.length === 0) {
+            billsEl.innerHTML = '<div class="empty-state"><div class="emoji">🎉</div><p>Tidak ada tagihan mendesak</p></div>';
+        } else {
+            billsEl.innerHTML = d.tagihan_jatuh_tempo.map(b => `
+                <div class="list-item">
+                    <div class="list-item-icon" style="background:#FFF3E0;">🧾</div>
+                    <div class="list-item-body">
+                        <div class="list-item-title">${b.nama_tagihan}</div>
+                        <div class="list-item-subtitle">Jatuh tempo tanggal ${b.tanggal_jatuh_tempo}</div>
+                    </div>
+                    <div class="list-item-value">${formatRupiah(b.nominal)}</div>
+                </div>
+            `).join('');
+        }
+
+        // Savings
+        const savingsEl = document.getElementById('dash-savings');
+        if (d.target_tabungan.length === 0) {
+            savingsEl.innerHTML = '<div class="empty-state"><div class="emoji">🐷</div><p>Belum ada target tabungan</p></div>';
+        } else {
+            savingsEl.innerHTML = d.target_tabungan.map(s => `
+                <div class="card full-width mt-md">
+                    <div class="flex-between">
+                        <span class="list-item-title">${s.nama_target}</span>
+                        <span class="text-muted" style="font-size:12px;">${s.progress_persen || 0}%</span>
+                    </div>
+                    <div class="progress-track"><div class="progress-fill" style="width:${Math.min(s.progress_persen || 0, 100)}%"></div></div>
+                    <div class="text-muted mt-md" style="font-size:12px;">${formatRupiah(s.nominal_terkumpul)} dari ${formatRupiah(s.target_nominal)}</div>
+                </div>
+            `).join('');
+        }
+
+        // Activity
+        const activityEl = document.getElementById('dash-activity');
+        if (d.aktivitas_pasangan.length === 0) {
+            activityEl.innerHTML = '<div class="empty-state"><div class="emoji">💬</div><p>Belum ada aktivitas terbaru</p></div>';
+        } else {
+            activityEl.innerHTML = d.aktivitas_pasangan.map(a => `
+                <div class="list-item">
+                    <div class="list-item-icon" style="background:${a.tipe === 'pemasukan' ? '#E6FAF5' : '#FEEBEF'};">${a.tipe === 'pemasukan' ? '💰' : '💸'}</div>
+                    <div class="list-item-body">
+                        <div class="list-item-title">${a.nama_user} mencatat ${a.tipe}</div>
+                        <div class="list-item-subtitle">${KATEGORI_LABELS[a.detail] || SUMBER_LABELS[a.detail] || a.detail || '-'}</div>
+                    </div>
+                    <div class="list-item-value ${a.tipe === 'pemasukan' ? 'income' : 'expense'}">${formatRupiah(a.nominal)}</div>
+                </div>
+            `).join('');
+        }
+
+    } catch (err) {
+        console.error('Gagal memuat dashboard:', err.message);
+        if (err.message.includes('pasangan')) {
+            showPage('page-connect-couple');
+        }
+    }
+}
+
+// ============================================
+// REKENING
+// ============================================
+async function loadAccounts() {
+    try {
+        const res = await apiCall('/accounts');
+        state.accounts = res.data.accounts;
+
+        const listEl = document.getElementById('accounts-list');
+        if (state.accounts.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">🏦</div><p>Belum ada rekening. Tambah rekening pertama kamu!</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = state.accounts.map(a => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:${a.warna}22;">${TIPE_ICON[a.tipe] || '💼'}</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${a.nama_rekening}</div>
+                    <div class="list-item-subtitle">${a.nama_bank || a.tipe}</div>
+                </div>
+                <div class="list-item-value">${formatRupiah(a.saldo_saat_ini)}</div>
+            </div>
+        `).join('');
+
+        populateAccountDropdowns();
+
+    } catch (err) {
+        console.error('Gagal memuat rekening:', err.message);
+    }
+}
+
+function populateAccountDropdowns() {
+    const options = state.accounts.map(a => `<option value="${a.id}">${a.nama_rekening}</option>`).join('');
+    document.getElementById('expense-account').innerHTML = options || '<option value="">Belum ada rekening</option>';
+    document.getElementById('income-account').innerHTML = options || '<option value="">Belum ada rekening</option>';
+}
+
+document.getElementById('form-add-account').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/accounts', {
+            method: 'POST',
+            body: JSON.stringify({
+                nama_rekening: document.getElementById('account-nama').value,
+                tipe: document.getElementById('account-tipe').value,
+                saldo_awal: Number(document.getElementById('account-saldo').value)
+            })
+        });
+
+        closeSheet('sheet-add-account');
+        e.target.reset();
+        loadAccounts();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// TRANSAKSI (Pengeluaran & Pemasukan)
+// ============================================
+let activeTransactionTab = 'expense';
+
+function switchTransactionTab(tab) {
+    activeTransactionTab = tab;
+    document.getElementById('tab-expense').classList.toggle('btn-primary', tab === 'expense');
+    document.getElementById('tab-expense').classList.toggle('btn-secondary', tab !== 'expense');
+    document.getElementById('tab-income').classList.toggle('btn-primary', tab === 'income');
+    document.getElementById('tab-income').classList.toggle('btn-secondary', tab !== 'income');
+    loadTransactions();
+}
+
+async function loadTransactions() {
+    try {
+        const endpoint = activeTransactionTab === 'expense' ? '/expenses' : '/income';
+        const res = await apiCall(endpoint);
+        const items = res.data.items;
+
+        const listEl = document.getElementById('transactions-list');
+        if (items.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">📭</div><p>Belum ada transaksi</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = items.map(item => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:${activeTransactionTab === 'expense' ? '#FEEBEF' : '#E6FAF5'};">
+                    ${activeTransactionTab === 'expense' ? '💸' : '💰'}
+                </div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${KATEGORI_LABELS[item.kategori] || SUMBER_LABELS[item.sumber] || item.kategori || item.sumber || 'Lainnya'}</div>
+                    <div class="list-item-subtitle">${item.nama_rekening} · ${formatTanggal(item.tanggal)}</div>
+                </div>
+                <div class="list-item-value ${activeTransactionTab === 'expense' ? 'expense' : 'income'}">
+                    ${activeTransactionTab === 'expense' ? '-' : '+'}${formatRupiah(item.nominal)}
+                </div>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat transaksi:', err.message);
+    }
+}
+
+document.getElementById('form-add-expense').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/expenses', {
+            method: 'POST',
+            body: JSON.stringify({
+                account_id: Number(document.getElementById('expense-account').value),
+                nominal: Number(document.getElementById('expense-nominal').value),
+                kategori: document.getElementById('expense-kategori').value,
+                tanggal: document.getElementById('expense-tanggal').value,
+                catatan: document.getElementById('expense-catatan').value
+            })
+        });
+
+        closeSheet('sheet-add-expense');
+        e.target.reset();
+        loadDashboard();
+        loadAccounts();
+        if (document.getElementById('page-transactions').classList.contains('hidden') === false) loadTransactions();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+document.getElementById('form-add-income').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/income', {
+            method: 'POST',
+            body: JSON.stringify({
+                account_id: Number(document.getElementById('income-account').value),
+                nominal: Number(document.getElementById('income-nominal').value),
+                sumber: document.getElementById('income-sumber').value,
+                tanggal: document.getElementById('income-tanggal').value
+            })
+        });
+
+        closeSheet('sheet-add-income');
+        e.target.reset();
+        loadDashboard();
+        loadAccounts();
+        if (document.getElementById('page-transactions').classList.contains('hidden') === false) loadTransactions();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// ANGGARAN
+// ============================================
+async function loadBudgets() {
+    try {
+        const res = await apiCall('/budgets');
+        const budgets = res.data;
+
+        const listEl = document.getElementById('budgets-list');
+        if (budgets.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">🎯</div><p>Belum ada anggaran bulan ini. Yuk buat target pertama!</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = budgets.map(b => {
+            const barClass = b.status === 'melebihi' ? 'danger' : b.status === 'hampir_habis' ? 'warning' : '';
+            return `
+                <div class="card full-width mt-md">
+                    <div class="flex-between">
+                        <span class="list-item-title">${KATEGORI_LABELS[b.kategori] || b.kategori}</span>
+                        <span class="text-muted" style="font-size:12px;">${b.persentase}%</span>
+                    </div>
+                    <div class="progress-track"><div class="progress-fill ${barClass}" style="width:${Math.min(b.persentase, 100)}%"></div></div>
+                    <div class="flex-between mt-md" style="font-size:12px;">
+                        <span class="text-muted">${formatRupiah(b.realisasi)} dari ${formatRupiah(b.target_nominal)}</span>
+                        <span style="color:${b.sisa < 0 ? 'var(--color-danger)' : 'var(--color-shared)'}; font-weight:600;">
+                            ${b.sisa < 0 ? 'Lebih ' + formatRupiah(Math.abs(b.sisa)) : 'Sisa ' + formatRupiah(b.sisa)}
+                        </span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat anggaran:', err.message);
+    }
+}
+
+document.getElementById('form-add-budget').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        const now = new Date();
+        await apiCall('/budgets', {
+            method: 'POST',
+            body: JSON.stringify({
+                kategori: document.getElementById('budget-kategori').value,
+                target_nominal: Number(document.getElementById('budget-target').value),
+                bulan: now.getMonth() + 1,
+                tahun: now.getFullYear()
+            })
+        });
+
+        closeSheet('sheet-add-budget');
+        e.target.reset();
+        loadBudgets();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// TABUNGAN
+// ============================================
+async function loadSavings() {
+    try {
+        const res = await apiCall('/savings');
+        const goals = res.data;
+
+        const listEl = document.getElementById('savings-list');
+        if (goals.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">🐷</div><p>Belum ada target tabungan. Yuk buat target pertama!</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = goals.map(g => {
+            const barClass = g.status === 'completed' ? '' : '';
+            return `
+                <div class="card full-width mt-md">
+                    <div class="flex-between">
+                        <span class="list-item-title">${g.status === 'completed' ? '🎉 ' : ''}${g.nama_target}</span>
+                        <span class="text-muted" style="font-size:12px;">${g.progress_persen}%</span>
+                    </div>
+                    <div class="progress-track"><div class="progress-fill" style="width:${Math.min(g.progress_persen, 100)}%"></div></div>
+                    <div class="flex-between mt-md" style="font-size:12px;">
+                        <span class="text-muted">${formatRupiah(g.nominal_terkumpul)} dari ${formatRupiah(g.target_nominal)}</span>
+                        ${g.target_tanggal ? `<span class="text-muted">Target: ${formatTanggal(g.target_tanggal)}</span>` : ''}
+                    </div>
+                    ${g.status !== 'completed' ? `<button class="btn btn-secondary btn-block mt-md" onclick="openDepositSheet('${g.uuid}')">+ Setor Tabungan</button>` : ''}
+                </div>
+            `;
+        }).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat tabungan:', err.message);
+    }
+}
+
+function openDepositSheet(goalUuid) {
+    document.getElementById('deposit-goal-uuid').value = goalUuid;
+    const options = '<option value="">Tidak mengurangi saldo rekening</option>' +
+        state.accounts.map(a => `<option value="${a.id}">${a.nama_rekening}</option>`).join('');
+    document.getElementById('deposit-account').innerHTML = options;
+    openSheet('sheet-deposit-savings');
+}
+
+document.getElementById('form-add-savings').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/savings', {
+            method: 'POST',
+            body: JSON.stringify({
+                nama_target: document.getElementById('savings-nama').value,
+                target_nominal: Number(document.getElementById('savings-target').value),
+                target_tanggal: document.getElementById('savings-tanggal').value || null
+            })
+        });
+
+        closeSheet('sheet-add-savings');
+        e.target.reset();
+        loadSavings();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+document.getElementById('form-deposit-savings').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        const goalUuid = document.getElementById('deposit-goal-uuid').value;
+        const accountId = document.getElementById('deposit-account').value;
+
+        const res = await apiCall(`/savings/${goalUuid}/deposit`, {
+            method: 'POST',
+            body: JSON.stringify({
+                nominal: Number(document.getElementById('deposit-nominal').value),
+                tanggal: document.getElementById('deposit-tanggal').value,
+                account_id: accountId ? Number(accountId) : null
+            })
+        });
+
+        closeSheet('sheet-deposit-savings');
+        e.target.reset();
+        if (res.data.tercapai) alert('🎉 Selamat! Target tabungan tercapai!');
+        loadSavings();
+        loadAccounts();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// TO-DO LIST
+// ============================================
+let activeTodoFilter = '';
+
+function switchTodoFilter(filter) {
+    activeTodoFilter = filter;
+    document.querySelectorAll('.todo-filter').forEach((btn, idx) => {
+        const filters = ['', 'belum', 'selesai'];
+        btn.classList.toggle('btn-primary', filters[idx] === filter);
+        btn.classList.toggle('btn-secondary', filters[idx] !== filter);
+    });
+    loadTodos();
+}
+
+async function loadTodos() {
+    try {
+        const endpoint = activeTodoFilter ? `/todos?status=${activeTodoFilter}` : '/todos';
+        const res = await apiCall(endpoint);
+        const todos = res.data;
+
+        const listEl = document.getElementById('todos-list');
+        if (todos.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">✅</div><p>Tidak ada tugas di sini</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = todos.map(t => `
+            <div class="checklist-item ${t.status === 'selesai' ? 'done' : ''}">
+                <div class="checklist-checkbox ${t.status === 'selesai' ? 'checked' : ''}" onclick="toggleTodoStatus('${t.uuid}', '${t.status}')">
+                    ${t.status === 'selesai' ? '✓' : ''}
+                </div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${t.judul}</div>
+                    <div class="list-item-subtitle">${t.nama_assigned || 'Belum ditugaskan'}${t.deadline ? ' · ' + formatTanggal(t.deadline) : ''}</div>
+                </div>
+                <span class="priority-badge ${t.prioritas}">${t.prioritas}</span>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat tugas:', err.message);
+    }
+}
+
+async function toggleTodoStatus(uuid, currentStatus) {
+    try {
+        const newStatus = currentStatus === 'selesai' ? 'belum' : 'selesai';
+        await apiCall(`/todos/${uuid}`, {
+            method: 'PUT',
+            body: JSON.stringify({ status: newStatus })
+        });
+        loadTodos();
+        if (document.getElementById('page-dashboard').classList.contains('hidden') === false) loadDashboard();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+async function openTodoSheet() {
+    try {
+        const me = await apiCall('/auth/me');
+        const options = ['<option value="">Belum ditugaskan</option>', `<option value="${me.data.id}">Saya (${me.data.nama})</option>`];
+        if (me.data.pasangan) {
+            options.push(`<option value="${me.data.pasangan.id}">${me.data.pasangan.nama}</option>`);
+        }
+        document.getElementById('todo-assigned').innerHTML = options.join('');
+    } catch (err) {
+        console.error('Gagal memuat data pasangan:', err.message);
+    }
+    openSheet('sheet-add-todo');
+}
+
+document.getElementById('form-add-todo').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        const assignedTo = document.getElementById('todo-assigned').value;
+        await apiCall('/todos', {
+            method: 'POST',
+            body: JSON.stringify({
+                judul: document.getElementById('todo-judul').value,
+                assigned_to: assignedTo ? Number(assignedTo) : null,
+                prioritas: document.getElementById('todo-prioritas').value,
+                deadline: document.getElementById('todo-deadline').value || null
+            })
+        });
+
+        closeSheet('sheet-add-todo');
+        e.target.reset();
+        loadTodos();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// KALENDER
+// ============================================
+async function loadCalendar() {
+    try {
+        const res = await apiCall('/calendar?upcoming_limit=30');
+        const events = res.data;
+
+        const listEl = document.getElementById('calendar-list');
+        if (events.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">📅</div><p>Belum ada jadwal mendatang</p></div>';
+            return;
+        }
+
+        const TIPE_ICON_CAL = {
+            kerja: '💼', cuti: '🏖️', dokter: '🩺', liburan: '✈️',
+            keluarga: '👨‍👩‍👧', ulang_tahun: '🎂', anniversary: '💑', lainnya: '📌'
+        };
+
+        listEl.innerHTML = events.map(ev => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:#F3EFF6;">${TIPE_ICON_CAL[ev.tipe] || '📌'}</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${ev.judul}</div>
+                    <div class="list-item-subtitle">${new Date(ev.tanggal_mulai).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${ev.lokasi ? ' · ' + ev.lokasi : ''}</div>
+                </div>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat kalender:', err.message);
+    }
+}
+
+document.getElementById('form-add-calendar').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/calendar', {
+            method: 'POST',
+            body: JSON.stringify({
+                judul: document.getElementById('calendar-judul').value,
+                tipe: document.getElementById('calendar-tipe').value,
+                tanggal_mulai: document.getElementById('calendar-mulai').value,
+                lokasi: document.getElementById('calendar-lokasi').value || null
+            })
+        });
+
+        closeSheet('sheet-add-calendar');
+        e.target.reset();
+        loadCalendar();
+        if (document.getElementById('page-dashboard').classList.contains('hidden') === false) loadDashboard();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// SHOPPING LIST
+// ============================================
+let currentShoppingListUuid = null;
+
+async function loadShopping() {
+    try {
+        const res = await apiCall('/shopping/active');
+        const list = res.data;
+        currentShoppingListUuid = list.uuid;
+
+        document.getElementById('shopping-list-nama').textContent = list.nama_list;
+
+        const summaryEl = document.getElementById('shopping-summary');
+        summaryEl.innerHTML = `
+            <div class="flex-between">
+                <span class="text-muted" style="font-size:13px;">Estimasi Total</span>
+                <span class="list-item-title">${formatRupiah(list.total_estimasi)}</span>
+            </div>
+            <div class="flex-between mt-md" style="font-size:12px;">
+                <span class="text-muted">Sudah dibeli</span>
+                <span style="color:var(--color-shared); font-weight:600;">${formatRupiah(list.total_terbeli)}</span>
+            </div>
+        `;
+
+        const itemsEl = document.getElementById('shopping-items-list');
+        if (list.items.length === 0) {
+            itemsEl.innerHTML = '<div class="empty-state"><div class="emoji">🛒</div><p>Daftar belanja masih kosong</p></div>';
+            return;
+        }
+
+        itemsEl.innerHTML = list.items.map(item => `
+            <div class="checklist-item ${item.checked ? 'done' : ''}">
+                <div class="checklist-checkbox ${item.checked ? 'checked' : ''}" onclick="toggleShoppingItem(${item.id})">
+                    ${item.checked ? '✓' : ''}
+                </div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${item.nama_barang}${item.jumlah ? ' (' + item.jumlah + ')' : ''}</div>
+                </div>
+                ${item.estimasi_harga ? `<div class="list-item-value">${formatRupiah(item.estimasi_harga)}</div>` : ''}
+                <button class="btn-icon" style="width:32px;height:32px;font-size:14px;" onclick="deleteShoppingItem(${item.id})">✕</button>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat shopping list:', err.message);
+    }
+}
+
+async function toggleShoppingItem(itemId) {
+    try {
+        await apiCall(`/shopping/items/${itemId}/toggle`, { method: 'PUT' });
+        loadShopping();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+async function deleteShoppingItem(itemId) {
+    try {
+        await apiCall(`/shopping/items/${itemId}`, { method: 'DELETE' });
+        loadShopping();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+async function completeShoppingList() {
+    if (!confirm('Selesaikan belanja ini? Daftar baru akan dibuat otomatis untuk belanja berikutnya.')) return;
+    try {
+        await apiCall(`/shopping/${currentShoppingListUuid}/complete`, { method: 'POST' });
+        loadShopping();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+document.getElementById('form-add-shopping-item').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall(`/shopping/${currentShoppingListUuid}/items`, {
+            method: 'POST',
+            body: JSON.stringify({
+                nama_barang: document.getElementById('shopping-item-nama').value,
+                jumlah: document.getElementById('shopping-item-jumlah').value || null,
+                estimasi_harga: Number(document.getElementById('shopping-item-harga').value) || 0
+            })
+        });
+
+        closeSheet('sheet-add-shopping-item');
+        e.target.reset();
+        loadShopping();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// TAGIHAN RUTIN
+// ============================================
+async function loadBills() {
+    try {
+        const res = await apiCall('/bills');
+        const bills = res.data;
+
+        const listEl = document.getElementById('bills-list');
+        if (bills.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">🧾</div><p>Belum ada tagihan rutin. Tambah tagihan pertama!</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = bills.map(b => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:${b.status_bulan_ini === 'sudah_bayar' ? '#E6FAF5' : '#FFF3E0'};">
+                    ${b.status_bulan_ini === 'sudah_bayar' ? '✅' : '🧾'}
+                </div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${b.nama_tagihan}</div>
+                    <div class="list-item-subtitle">Jatuh tempo tanggal ${b.tanggal_jatuh_tempo} · ${b.status_bulan_ini === 'sudah_bayar' ? 'Sudah dibayar' : 'Belum dibayar'}</div>
+                </div>
+                ${b.status_bulan_ini !== 'sudah_bayar'
+                    ? `<button class="btn btn-secondary" style="width:auto;padding:8px 14px;font-size:12px;" onclick="openPayBillSheet(${b.id}, ${b.nominal || 0})">Bayar</button>`
+                    : `<div class="list-item-value income">${formatRupiah(b.nominal_dibayar)}</div>`
+                }
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat tagihan:', err.message);
+    }
+}
+
+function openPayBillSheet(billId, nominalDefault) {
+    document.getElementById('pay-bill-id').value = billId;
+    document.getElementById('pay-bill-nominal').value = nominalDefault || '';
+    const options = '<option value="">Tidak mengurangi saldo rekening</option>' +
+        state.accounts.map(a => `<option value="${a.id}">${a.nama_rekening}</option>`).join('');
+    document.getElementById('pay-bill-account').innerHTML = options;
+    openSheet('sheet-pay-bill');
+}
+
+document.getElementById('form-add-bill').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/bills', {
+            method: 'POST',
+            body: JSON.stringify({
+                nama_tagihan: document.getElementById('bill-nama').value,
+                nominal: Number(document.getElementById('bill-nominal').value) || null,
+                tanggal_jatuh_tempo: Number(document.getElementById('bill-tanggal').value),
+                pengingat_hari_sebelum: Number(document.getElementById('bill-reminder').value) || 3
+            })
+        });
+
+        closeSheet('sheet-add-bill');
+        e.target.reset();
+        loadBills();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+document.getElementById('form-pay-bill').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        const billId = document.getElementById('pay-bill-id').value;
+        const accountId = document.getElementById('pay-bill-account').value;
+
+        await apiCall(`/bills/${billId}/pay`, {
+            method: 'POST',
+            body: JSON.stringify({
+                nominal: Number(document.getElementById('pay-bill-nominal').value),
+                tanggal_bayar: document.getElementById('pay-bill-tanggal').value,
+                account_id: accountId ? Number(accountId) : null
+            })
+        });
+
+        closeSheet('sheet-pay-bill');
+        e.target.reset();
+        loadBills();
+        loadAccounts();
+        if (document.getElementById('page-dashboard').classList.contains('hidden') === false) loadDashboard();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// HUTANG & PIUTANG
+// ============================================
+let activeDebtFilter = '';
+
+function switchDebtFilter(filter) {
+    activeDebtFilter = filter;
+    document.querySelectorAll('.debt-filter').forEach((btn, idx) => {
+        const filters = ['', 'hutang', 'piutang'];
+        btn.classList.toggle('btn-primary', filters[idx] === filter);
+        btn.classList.toggle('btn-secondary', filters[idx] !== filter);
+    });
+    loadDebts();
+}
+
+async function loadDebts() {
+    try {
+        const endpoint = activeDebtFilter ? `/debts?tipe=${activeDebtFilter}` : '/debts';
+        const res = await apiCall(endpoint);
+        const debts = res.data;
+
+        const listEl = document.getElementById('debts-list');
+        if (debts.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">💳</div><p>Belum ada catatan hutang/piutang</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = debts.map(d => `
+            <div class="card full-width mt-md">
+                <div class="flex-between">
+                    <span class="list-item-title">${d.tipe === 'hutang' ? '📤' : '📥'} ${d.nama_pihak}</span>
+                    <span class="priority-badge ${d.status === 'lunas' ? 'rendah' : 'tinggi'}">${d.status === 'lunas' ? 'Lunas' : 'Berjalan'}</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill" style="width:${Math.min(d.persentase_terbayar, 100)}%"></div></div>
+                <div class="flex-between mt-md" style="font-size:12px;">
+                    <span class="text-muted">${formatRupiah(d.nominal_terbayar)} dari ${formatRupiah(d.nominal_total)}</span>
+                    <span style="font-weight:600;">Sisa ${formatRupiah(d.sisa)}</span>
+                </div>
+                ${d.jatuh_tempo ? `<div class="text-muted mt-md" style="font-size:12px;">Jatuh tempo: ${formatTanggal(d.jatuh_tempo)}</div>` : ''}
+                ${d.status !== 'lunas' ? `<button class="btn btn-secondary btn-block mt-md" onclick="openPayDebtSheet('${d.uuid}', '${d.tipe}', '${d.nama_pihak.replace(/'/g, "\\'")}')">+ Catat Pembayaran</button>` : ''}
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat hutang/piutang:', err.message);
+    }
+}
+
+function openPayDebtSheet(debtUuid, tipe, namaPihak) {
+    document.getElementById('pay-debt-uuid').value = debtUuid;
+    document.getElementById('pay-debt-title').textContent = tipe === 'hutang' ? `Bayar Hutang ke ${namaPihak}` : `Terima Pembayaran dari ${namaPihak}`;
+    document.getElementById('pay-debt-account-label').textContent = tipe === 'hutang' ? 'Bayar dari Rekening (opsional)' : 'Masuk ke Rekening (opsional)';
+
+    const options = '<option value="">Tidak melibatkan rekening</option>' +
+        state.accounts.map(a => `<option value="${a.id}">${a.nama_rekening}</option>`).join('');
+    document.getElementById('pay-debt-account').innerHTML = options;
+    openSheet('sheet-pay-debt');
+}
+
+document.getElementById('form-add-debt').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/debts', {
+            method: 'POST',
+            body: JSON.stringify({
+                tipe: document.getElementById('debt-tipe').value,
+                nama_pihak: document.getElementById('debt-pihak').value,
+                nominal_total: Number(document.getElementById('debt-nominal').value),
+                tanggal_mulai: document.getElementById('debt-mulai').value,
+                jatuh_tempo: document.getElementById('debt-jatuh-tempo').value || null,
+                catatan: document.getElementById('debt-catatan').value || null
+            })
+        });
+
+        closeSheet('sheet-add-debt');
+        e.target.reset();
+        loadDebts();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+document.getElementById('form-pay-debt').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        const debtUuid = document.getElementById('pay-debt-uuid').value;
+        const accountId = document.getElementById('pay-debt-account').value;
+
+        const res = await apiCall(`/debts/${debtUuid}/payment`, {
+            method: 'POST',
+            body: JSON.stringify({
+                nominal: Number(document.getElementById('pay-debt-nominal').value),
+                tanggal: document.getElementById('pay-debt-tanggal').value,
+                account_id: accountId ? Number(accountId) : null
+            })
+        });
+
+        closeSheet('sheet-pay-debt');
+        e.target.reset();
+        if (res.data.lunas) alert('🎉 Lunas!');
+        loadDebts();
+        loadAccounts();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// TRANSFER ANTAR REKENING
+// ============================================
+function openTransferSheet() {
+    const options = state.accounts.map(a => `<option value="${a.id}">${a.nama_rekening}</option>`).join('');
+    document.getElementById('transfer-from').innerHTML = options;
+    document.getElementById('transfer-to').innerHTML = options;
+    openSheet('sheet-transfer');
+}
+
+async function loadTransfers() {
+    try {
+        const res = await apiCall('/transfers');
+        const transfers = res.data;
+
+        const listEl = document.getElementById('transfers-list');
+        if (transfers.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">⇄</div><p>Belum ada riwayat transfer</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = transfers.map(t => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:#F3EFF6;">⇄</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${t.nama_dari} → ${t.nama_ke}</div>
+                    <div class="list-item-subtitle">${t.nama_user} · ${formatTanggal(t.tanggal)}</div>
+                </div>
+                <div class="list-item-value">${formatRupiah(t.nominal)}</div>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat transfer:', err.message);
+    }
+}
+
+document.getElementById('form-transfer').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        const fromId = document.getElementById('transfer-from').value;
+        const toId = document.getElementById('transfer-to').value;
+
+        if (fromId === toId) {
+            alert('Rekening asal dan tujuan tidak boleh sama');
+            return;
+        }
+
+        await apiCall('/transfers', {
+            method: 'POST',
+            body: JSON.stringify({
+                from_account_id: Number(fromId),
+                to_account_id: Number(toId),
+                nominal: Number(document.getElementById('transfer-nominal').value),
+                tanggal: document.getElementById('transfer-tanggal').value,
+                catatan: document.getElementById('transfer-catatan').value || null
+            })
+        });
+
+        closeSheet('sheet-transfer');
+        e.target.reset();
+        loadAccounts();
+        if (document.getElementById('page-transfers').classList.contains('hidden') === false) loadTransfers();
+
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// LAPORAN KEUANGAN
+// ============================================
+let cashflowChartInstance = null;
+let expenseCategoryChartInstance = null;
+
+async function loadReports() {
+    try {
+        const [overviewRes, cashflowRes, breakdownRes] = await Promise.all([
+            apiCall('/reports/overview'),
+            apiCall('/reports/cashflow?months=6'),
+            apiCall('/reports/expense-breakdown')
+        ]);
+
+        const overview = overviewRes.data;
+        document.getElementById('report-pemasukan').textContent = formatRupiah(overview.pemasukan_bulan_ini);
+        document.getElementById('report-pengeluaran').textContent = formatRupiah(overview.pengeluaran_bulan_ini);
+
+        renderChangeIndicator('report-pemasukan-change', overview.perubahan_pemasukan_persen, true);
+        renderChangeIndicator('report-pengeluaran-change', overview.perubahan_pengeluaran_persen, false);
+
+        renderCashflowChart(cashflowRes.data);
+        renderExpenseCategoryChart(breakdownRes.data);
+
+        const breakdownListEl = document.getElementById('expense-breakdown-list');
+        if (breakdownRes.data.length === 0) {
+            breakdownListEl.innerHTML = '<div class="empty-state"><div class="emoji">📊</div><p>Belum ada pengeluaran bulan ini</p></div>';
+        } else {
+            breakdownListEl.innerHTML = breakdownRes.data.map(d => `
+                <div class="list-item">
+                    <div class="list-item-body">
+                        <div class="list-item-title">${KATEGORI_LABELS[d.kategori] || d.kategori}</div>
+                        <div class="list-item-subtitle">${d.jumlah_transaksi} transaksi · ${d.persentase}%</div>
+                    </div>
+                    <div class="list-item-value expense">${formatRupiah(d.total)}</div>
+                </div>
+            `).join('');
+        }
+
+    } catch (err) {
+        console.error('Gagal memuat laporan:', err.message);
+    }
+}
+
+function renderChangeIndicator(elId, persen, isIncomeMetric) {
+    const el = document.getElementById(elId);
+    const naik = persen > 0;
+    // Untuk pemasukan, naik itu bagus (hijau). Untuk pengeluaran, naik itu kurang ideal (merah).
+    const warnaBaik = isIncomeMetric ? naik : !naik;
+    const warna = persen === 0 ? 'var(--color-text-muted)' : (warnaBaik ? 'var(--color-shared)' : 'var(--color-danger)');
+    const panah = persen === 0 ? '' : (naik ? '↑' : '↓');
+    el.style.color = warna;
+    el.textContent = `${panah} ${Math.abs(persen)}% dari bulan lalu`;
+}
+
+function renderCashflowChart(data) {
+    const ctx = document.getElementById('chart-cashflow');
+    if (cashflowChartInstance) cashflowChartInstance.destroy();
+
+    cashflowChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d.label),
+            datasets: [
+                {
+                    label: 'Pemasukan',
+                    data: data.map(d => d.pemasukan),
+                    backgroundColor: '#6C5CE7',
+                    borderRadius: 6
+                },
+                {
+                    label: 'Pengeluaran',
+                    data: data.map(d => d.pengeluaran),
+                    backgroundColor: '#FF7F6B',
+                    borderRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { font: { family: 'Plus Jakarta Sans', size: 11 } } }
+            },
+            scales: {
+                y: { ticks: { callback: (v) => 'Rp' + (v / 1000) + 'rb', font: { size: 10 } } },
+                x: { ticks: { font: { size: 10 } } }
+            }
+        }
+    });
+}
+
+function renderExpenseCategoryChart(data) {
+    const ctx = document.getElementById('chart-expense-category');
+    if (expenseCategoryChartInstance) expenseCategoryChartInstance.destroy();
+
+    if (data.length === 0) {
+        ctx.getContext('2d').clearRect(0, 0, ctx.width, ctx.height);
+        return;
+    }
+
+    const palet = ['#6C5CE7', '#FF7F6B', '#1EC9A5', '#FFB84D', '#A29BFE', '#FFB4A6', '#F0506E', '#74B9FF'];
+
+    expenseCategoryChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.map(d => KATEGORI_LABELS[d.kategori] || d.kategori),
+            datasets: [{
+                data: data.map(d => d.total),
+                backgroundColor: data.map((_, i) => palet[i % palet.length]),
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { font: { family: 'Plus Jakarta Sans', size: 10 }, boxWidth: 12 } }
+            }
+        }
+    });
+}
+
+// ============================================
+// STOK RUMAH
+// ============================================
+async function loadStock() {
+    try {
+        const res = await apiCall('/stock');
+        const items = res.data;
+
+        const listEl = document.getElementById('stock-list');
+        if (items.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">📦</div><p>Belum ada barang yang dicatat</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = items.map(i => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:${i.is_low ? '#FEEBEF' : '#F3EFF6'};">${i.is_low ? '⚠️' : '📦'}</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${i.nama_barang}</div>
+                    <div class="list-item-subtitle">${i.jumlah_saat_ini} ${i.satuan || ''} ${i.is_low ? '· Stok menipis!' : ''}</div>
+                </div>
+                <div class="flex gap-sm">
+                    <button class="btn-icon" style="width:32px;height:32px;font-size:16px;" onclick="adjustStock('${i.uuid}', -1)">−</button>
+                    <button class="btn-icon" style="width:32px;height:32px;font-size:16px;" onclick="adjustStock('${i.uuid}', 1)">＋</button>
+                </div>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat stok:', err.message);
+    }
+}
+
+async function adjustStock(uuid, delta) {
+    try {
+        await apiCall(`/stock/${uuid}/adjust`, { method: 'PUT', body: JSON.stringify({ delta }) });
+        loadStock();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+document.getElementById('form-add-stock').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/stock', {
+            method: 'POST',
+            body: JSON.stringify({
+                nama_barang: document.getElementById('stock-nama').value,
+                jumlah_saat_ini: Number(document.getElementById('stock-jumlah').value) || 0,
+                satuan: document.getElementById('stock-satuan').value || null,
+                ambang_batas_minimum: Number(document.getElementById('stock-ambang').value) || 0
+            })
+        });
+        closeSheet('sheet-add-stock');
+        e.target.reset();
+        loadStock();
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// INVENTARIS RUMAH
+// ============================================
+async function loadInventory() {
+    try {
+        const res = await apiCall('/inventory');
+        const items = res.data;
+
+        const listEl = document.getElementById('inventory-list');
+        if (items.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">🛋️</div><p>Belum ada barang inventaris</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = items.map(i => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:#F3EFF6;">🛋️</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${i.nama_barang}</div>
+                    <div class="list-item-subtitle">${i.lokasi || '-'} ${i.harga_beli ? '· ' + formatRupiah(i.harga_beli) : ''}</div>
+                </div>
+                ${i.garansi_sampai ? `<span class="priority-badge ${i.garansi_masih_berlaku ? 'rendah' : 'tinggi'}">${i.garansi_masih_berlaku ? 'Garansi aktif' : 'Garansi habis'}</span>` : ''}
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat inventaris:', err.message);
+    }
+}
+
+document.getElementById('form-add-inventory').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/inventory', {
+            method: 'POST',
+            body: JSON.stringify({
+                nama_barang: document.getElementById('inv-nama').value,
+                lokasi: document.getElementById('inv-lokasi').value || null,
+                harga_beli: Number(document.getElementById('inv-harga').value) || null,
+                tanggal_beli: document.getElementById('inv-tanggal-beli').value || null,
+                garansi_sampai: document.getElementById('inv-garansi').value || null
+            })
+        });
+        closeSheet('sheet-add-inventory');
+        e.target.reset();
+        loadInventory();
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// JADWAL SERVIS
+// ============================================
+async function loadServices() {
+    try {
+        const res = await apiCall('/services');
+        const items = res.data;
+
+        const listEl = document.getElementById('services-list');
+        if (items.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">🔧</div><p>Belum ada jadwal servis</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = items.map(i => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:${i.sudah_lewat ? '#FEEBEF' : '#F3EFF6'};">🔧</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${i.nama_item}${i.jenis_servis ? ' — ' + i.jenis_servis : ''}</div>
+                    <div class="list-item-subtitle">${i.tanggal_servis_berikutnya ? 'Berikutnya: ' + formatTanggal(i.tanggal_servis_berikutnya) : 'Belum dijadwalkan'}</div>
+                </div>
+                <button class="btn btn-secondary" style="width:auto;padding:8px 12px;font-size:12px;" onclick="markServiceDone('${i.uuid}')">Selesai</button>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat jadwal servis:', err.message);
+    }
+}
+
+async function markServiceDone(uuid) {
+    try {
+        await apiCall(`/services/${uuid}/done`, { method: 'PUT', body: JSON.stringify({}) });
+        loadServices();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+document.getElementById('form-add-service').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/services', {
+            method: 'POST',
+            body: JSON.stringify({
+                nama_item: document.getElementById('service-nama').value,
+                jenis_servis: document.getElementById('service-jenis').value || null,
+                tanggal_servis_terakhir: document.getElementById('service-terakhir').value || null,
+                interval_hari: Number(document.getElementById('service-interval').value) || null
+            })
+        });
+        closeSheet('sheet-add-service');
+        e.target.reset();
+        loadServices();
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// DOKUMEN PENTING
+// ============================================
+const JENIS_DOKUMEN_LABEL = { ktp: 'KTP', kk: 'KK', npwp: 'NPWP', bpjs: 'BPJS', sim: 'SIM', stnk: 'STNK', bpkb: 'BPKB', sertifikat: 'Sertifikat', polis: 'Polis Asuransi', lainnya: 'Lainnya' };
+
+async function loadDocuments() {
+    try {
+        const res = await apiCall('/documents');
+        const items = res.data;
+
+        const listEl = document.getElementById('documents-list');
+        if (items.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">📄</div><p>Belum ada dokumen tersimpan</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = items.map(i => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:${i.sudah_kedaluwarsa ? '#FEEBEF' : i.akan_kedaluwarsa ? '#FFF3E0' : '#F3EFF6'};">📄</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${i.nama_dokumen}</div>
+                    <div class="list-item-subtitle">${JENIS_DOKUMEN_LABEL[i.jenis_dokumen] || i.jenis_dokumen}${i.berlaku_sampai ? ' · Berlaku sampai ' + formatTanggal(i.berlaku_sampai) : ''}</div>
+                </div>
+                ${i.sudah_kedaluwarsa ? '<span class="priority-badge tinggi">Kedaluwarsa</span>' : i.akan_kedaluwarsa ? '<span class="priority-badge sedang">Segera habis</span>' : ''}
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat dokumen:', err.message);
+    }
+}
+
+document.getElementById('form-add-document').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/documents', {
+            method: 'POST',
+            body: JSON.stringify({
+                jenis_dokumen: document.getElementById('doc-jenis').value,
+                nama_dokumen: document.getElementById('doc-nama').value,
+                nomor_dokumen: document.getElementById('doc-nomor').value || null,
+                berlaku_sampai: document.getElementById('doc-berlaku').value || null
+            })
+        });
+        closeSheet('sheet-add-document');
+        e.target.reset();
+        loadDocuments();
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// CATATAN BEBAS
+// ============================================
+async function loadNotes() {
+    try {
+        const res = await apiCall('/notes');
+        const notes = res.data;
+
+        const listEl = document.getElementById('notes-list');
+        if (notes.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">📝</div><p>Belum ada catatan</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = notes.map(n => `
+            <div class="card full-width mt-md">
+                <div class="flex-between">
+                    <span class="list-item-title">${n.judul}</span>
+                    <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteNote('${n.uuid}')">✕</button>
+                </div>
+                ${n.isi ? `<p class="text-muted mt-md" style="font-size:13px;">${n.isi}</p>` : ''}
+                <div class="text-muted mt-md" style="font-size:11px;">oleh ${n.nama_pembuat}</div>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('Gagal memuat catatan:', err.message);
+    }
+}
+
+async function deleteNote(uuid) {
+    if (!confirm('Hapus catatan ini?')) return;
+    try {
+        await apiCall(`/notes/${uuid}`, { method: 'DELETE' });
+        loadNotes();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+document.getElementById('form-add-note').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await apiCall('/notes', {
+            method: 'POST',
+            body: JSON.stringify({
+                judul: document.getElementById('note-judul').value,
+                isi: document.getElementById('note-isi').value || null
+            })
+        });
+        closeSheet('sheet-add-note');
+        e.target.reset();
+        loadNotes();
+    } catch (err) {
+        alert(err.message);
+    }
+});
+
+// ============================================
+// NOTIFIKASI
+// ============================================
+const NOTIF_ICON = { tagihan: '🧾', servis: '🔧', dokumen: '📄', tabungan: '🐷', anggaran: '🎯', tugas: '✅', aktivitas_pasangan: '💬' };
+
+async function checkNotifBadge() {
+    try {
+        const res = await apiCall('/notifications?unread_only=true');
+        const badge = document.getElementById('notif-badge');
+        if (res.unread_count > 0) badge.classList.remove('hidden');
+        else badge.classList.add('hidden');
+    } catch (err) {
+        console.error('Gagal cek notifikasi:', err.message);
+    }
+}
+
+async function loadNotifications() {
+    try {
+        const res = await apiCall('/notifications');
+        const notifications = res.data;
+
+        const listEl = document.getElementById('notifications-list');
+        if (notifications.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="emoji">🔔</div><p>Belum ada notifikasi</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = notifications.map(n => `
+            <div class="list-item" style="${n.is_read ? 'opacity:0.6;' : ''}" onclick="markNotificationRead('${n.uuid}')">
+                <div class="list-item-icon" style="background:#F3EFF6;">${NOTIF_ICON[n.tipe] || '🔔'}</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${n.judul}</div>
+                    <div class="list-item-subtitle">${n.pesan || ''}</div>
+                </div>
+                ${!n.is_read ? '<div class="notif-badge" style="position:static;"></div>' : ''}
+            </div>
+        `).join('');
+
+        checkNotifBadge();
+
+    } catch (err) {
+        console.error('Gagal memuat notifikasi:', err.message);
+    }
+}
+
+async function markNotificationRead(uuid) {
+    try {
+        await apiCall(`/notifications/${uuid}/read`, { method: 'PUT' });
+        loadNotifications();
+    } catch (err) {
+        console.error(err.message);
+    }
+}
+
+async function markAllNotificationsRead() {
+    try {
+        await apiCall('/notifications/read-all', { method: 'PUT' });
+        loadNotifications();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+// ============================================
+// PENGATURAN
+// ============================================
+async function loadSettings() {
+    try {
+        const [settingsRes, meRes] = await Promise.all([apiCall('/settings'), apiCall('/auth/me')]);
+        const settings = settingsRes.data;
+        const me = meRes.data;
+
+        document.getElementById('toggle-theme').classList.toggle('on', settings.tema === 'dark');
+        document.getElementById('toggle-notif-push').classList.toggle('on', !!settings.notifikasi_push);
+        document.getElementById('toggle-notif-email').classList.toggle('on', !!settings.notifikasi_email);
+
+        document.getElementById('settings-nama').textContent = me.nama;
+        document.getElementById('settings-email').textContent = me.email;
+        document.getElementById('settings-verified').textContent = me.email_verified ? '✓ Terverifikasi' : 'Belum diverifikasi';
+
+    } catch (err) {
+        console.error('Gagal memuat pengaturan:', err.message);
+    }
+}
+
+async function toggleTheme() {
+    const toggle = document.getElementById('toggle-theme');
+    const isDark = !toggle.classList.contains('on');
+    toggle.classList.toggle('on', isDark);
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+
+    try {
+        await apiCall('/settings/theme', { method: 'PUT', body: JSON.stringify({ tema: isDark ? 'dark' : 'light' }) });
+    } catch (err) {
+        console.error('Gagal menyimpan tema:', err.message);
+    }
+}
+
+async function toggleNotifSetting(jenis) {
+    const toggleId = jenis === 'push' ? 'toggle-notif-push' : 'toggle-notif-email';
+    const toggle = document.getElementById(toggleId);
+    const newValue = !toggle.classList.contains('on');
+    toggle.classList.toggle('on', newValue);
+
+    try {
+        const body = jenis === 'push' ? { notifikasi_push: newValue } : { notifikasi_email: newValue };
+        await apiCall('/settings/notifications', { method: 'PUT', body: JSON.stringify(body) });
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+function logout() {
+    if (!confirm('Yakin ingin keluar?')) return;
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    state.token = null;
+    state.user = null;
+    document.getElementById('bottom-nav').style.display = 'none';
+    showPage('page-login');
+}
+
+// ============================================
+// LOGIN DENGAN GOOGLE
+// ============================================
+const GOOGLE_CLIENT_ID = ''; // Isi dengan Client ID dari Google Cloud Console untuk mengaktifkan
+
+function initGoogleSignIn() {
+    if (!GOOGLE_CLIENT_ID) {
+        document.getElementById('google-signin-note').classList.remove('hidden');
+        return;
+    }
+    if (typeof google === 'undefined') return;
+
+    google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential
+    });
+    google.accounts.id.renderButton(
+        document.getElementById('google-signin-login'),
+        { theme: 'outline', size: 'large', width: 280, text: 'continue_with' }
+    );
+}
+
+async function handleGoogleCredential(response) {
+    try {
+        const res = await apiCall('/auth/google', {
+            method: 'POST',
+            body: JSON.stringify({ id_token: response.credential })
+        });
+
+        state.token = res.data.token;
+        state.user = res.data.user;
+        localStorage.setItem('token', state.token);
+        localStorage.setItem('user', JSON.stringify(state.user));
+
+        afterLogin();
+
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+// ============================================
+// INISIALISASI SAAT APP DIMUAT
+// ============================================
+window.addEventListener('DOMContentLoaded', () => {
+    // Terapkan tema tersimpan (sebelum login pun sudah bisa diterapkan)
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+
+    if (state.token && state.user) {
+        afterLogin();
+        loadAccounts(); // supaya dropdown rekening terisi untuk quick-add
+    } else {
+        showPage('page-login');
+        initGoogleSignIn();
+    }
+
+    // Registrasi service worker untuk PWA
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.error('SW gagal:', err));
+    }
+});

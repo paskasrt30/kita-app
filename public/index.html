@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Kita — Manajemen Rumah Tangga</title>
+<meta name="theme-color" content="#5B4B8A">
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+<div class="app-shell">
+
+    <!-- ==================== AUTH: LOGIN ==================== -->
+    <div id="page-login" class="page auth-screen">
+        <div class="auth-logo">
+            <div class="logo-circles">
+                <div class="logo-circle a"></div>
+                <div class="logo-circle b"></div>
+            </div>
+        </div>
+        <h1 class="auth-title">Selamat datang kembali</h1>
+        <p class="auth-subtitle">Kelola rumah tangga kalian berdua, di satu tempat</p>
+
+        <div id="login-error" class="error-banner"></div>
+
+        <form id="form-login">
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" id="login-email" placeholder="nama@email.com" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" class="form-input" id="login-password" placeholder="Password" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Masuk</button>
+        </form>
+
+        <div class="divider-or">atau</div>
+        <div class="google-signin-wrapper" id="google-signin-login"></div>
+        <div id="google-signin-note" class="text-muted text-center hidden" style="font-size:12px;">Login Google belum dikonfigurasi</div>
+
+        <p class="auth-switch">Belum punya akun? <a href="#" onclick="showPage('page-register')">Daftar di sini</a></p>
+    </div>
+
+    <!-- ==================== AUTH: REGISTER ==================== -->
+    <div id="page-register" class="page auth-screen hidden">
+        <div class="auth-logo">
+            <div class="logo-circles">
+                <div class="logo-circle a"></div>
+                <div class="logo-circle b"></div>
+            </div>
+        </div>
+        <h1 class="auth-title">Buat akun baru</h1>
+        <p class="auth-subtitle">Mulai kelola rumah tangga bersama pasangan</p>
+
+        <div id="register-error" class="error-banner"></div>
+
+        <form id="form-register">
+            <div class="form-group">
+                <label class="form-label">Nama Lengkap</label>
+                <input type="text" class="form-input" id="register-nama" placeholder="Nama kamu" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" id="register-email" placeholder="nama@email.com" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" class="form-input" id="register-password" placeholder="Minimal 6 karakter" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Daftar</button>
+        </form>
+
+        <p class="auth-switch">Sudah punya akun? <a href="#" onclick="showPage('page-login')">Masuk di sini</a></p>
+    </div>
+
+    <!-- ==================== HUBUNGKAN PASANGAN ==================== -->
+    <div id="page-connect-couple" class="page auth-screen hidden">
+        <div class="auth-logo">
+            <div class="logo-circles">
+                <div class="logo-circle a"></div>
+                <div class="logo-circle b"></div>
+            </div>
+        </div>
+        <h1 class="auth-title">Hubungkan pasangan</h1>
+        <p class="auth-subtitle">Undang pasangan kamu untuk mulai berbagi data rumah tangga</p>
+
+        <div id="connect-error" class="error-banner"></div>
+        <div id="connect-success" class="error-banner" style="background:#E6FAF5; color:#0F9D7F;"></div>
+
+        <form id="form-invite">
+            <div class="form-group">
+                <label class="form-label">Email Pasangan</label>
+                <input type="email" class="form-input" id="invite-email" placeholder="email pasangan" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Kirim Undangan</button>
+        </form>
+
+        <button class="btn btn-secondary btn-block mt-md" onclick="skipCoupleConnect()">Lewati untuk sekarang</button>
+    </div>
+
+    <!-- ==================== DASHBOARD ==================== -->
+    <div id="page-dashboard" class="page hidden">
+        <div class="app-header">
+            <div class="header-greeting">
+                <div class="eyebrow" id="greeting-text">Selamat pagi 👋</div>
+                <h1 id="greeting-nama">Halo!</h1>
+            </div>
+            <div class="couple-avatars">
+                <button class="btn-icon" style="margin-right:8px; position:relative;" onclick="navigateTo('page-notifications')">
+                    🔔
+                    <span id="notif-badge" class="notif-badge hidden"></span>
+                </button>
+                <div class="avatar partner-a" id="avatar-me">A</div>
+                <div class="avatar partner-b" id="avatar-partner">B</div>
+            </div>
+        </div>
+
+        <div class="balance-card">
+            <div class="balance-label">Total Saldo Rumah Tangga</div>
+            <div class="balance-amount" id="dash-total-saldo">Rp 0</div>
+            <div class="balance-row">
+                <div class="balance-stat">
+                    <div class="stat-label">↓ Pemasukan bulan ini</div>
+                    <div class="stat-value" id="dash-pemasukan">Rp 0</div>
+                </div>
+                <div class="balance-stat">
+                    <div class="stat-label">↑ Pengeluaran bulan ini</div>
+                    <div class="stat-value" id="dash-pengeluaran">Rp 0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Tugas Hari Ini</h2>
+                <span class="see-all">Lihat semua</span>
+            </div>
+            <div id="dash-todos"><div class="empty-state"><div class="emoji">✅</div><p>Belum ada tugas hari ini</p></div></div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Tagihan Jatuh Tempo</h2>
+                <span class="see-all">Lihat semua</span>
+            </div>
+            <div id="dash-bills"><div class="empty-state"><div class="emoji">🎉</div><p>Tidak ada tagihan mendesak</p></div></div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Target Tabungan</h2>
+                <span class="see-all">Lihat semua</span>
+            </div>
+            <div id="dash-savings"><div class="empty-state"><div class="emoji">🐷</div><p>Belum ada target tabungan</p></div></div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Aktivitas Pasangan</h2>
+            </div>
+            <div id="dash-activity"><div class="empty-state"><div class="emoji">💬</div><p>Belum ada aktivitas terbaru</p></div></div>
+        </div>
+    </div>
+
+    <!-- ==================== REKENING ==================== -->
+    <div id="page-accounts" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting">
+                <div class="eyebrow">Kelola</div>
+                <h1>Rekening</h1>
+            </div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-account')">＋</button>
+        </div>
+        <div id="accounts-list"></div>
+        <button class="btn btn-secondary btn-block mt-md" onclick="openTransferSheet()">⇄ Transfer Antar Rekening</button>
+    </div>
+
+    <!-- ==================== TRANSAKSI (Pemasukan & Pengeluaran) ==================== -->
+    <div id="page-transactions" class="page hidden">
+        <div class="app-header">
+            <div class="header-greeting">
+                <div class="eyebrow">Riwayat</div>
+                <h1>Transaksi</h1>
+            </div>
+        </div>
+        <div class="flex gap-sm" style="padding: 0 4px 16px;">
+            <button class="btn btn-secondary" id="tab-expense" onclick="switchTransactionTab('expense')" style="flex:1;">Pengeluaran</button>
+            <button class="btn btn-secondary" id="tab-income" onclick="switchTransactionTab('income')" style="flex:1;">Pemasukan</button>
+        </div>
+        <div id="transactions-list"></div>
+    </div>
+
+    <!-- ==================== ANGGARAN ==================== -->
+    <div id="page-budgets" class="page hidden">
+        <div class="app-header">
+            <div class="header-greeting">
+                <div class="eyebrow">Kelola</div>
+                <h1>Anggaran Bulanan</h1>
+            </div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-budget')">＋</button>
+        </div>
+        <div id="budgets-list"></div>
+    </div>
+
+    <!-- ==================== LAINNYA (MENU GRID) ==================== -->
+    <div id="page-more" class="page hidden">
+        <div class="app-header">
+            <div class="header-greeting">
+                <div class="eyebrow">Menu</div>
+                <h1>Lainnya</h1>
+            </div>
+        </div>
+        <div class="card-grid">
+            <div class="card more-menu-item" onclick="navigateTo('page-accounts')">
+                <div class="more-menu-icon">🏦</div>
+                <div class="more-menu-label">Rekening</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-savings')">
+                <div class="more-menu-icon">🐷</div>
+                <div class="more-menu-label">Tabungan</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-todos')">
+                <div class="more-menu-icon">✅</div>
+                <div class="more-menu-label">To-do List</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-calendar')">
+                <div class="more-menu-icon">📅</div>
+                <div class="more-menu-label">Kalender</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-shopping')">
+                <div class="more-menu-icon">🛒</div>
+                <div class="more-menu-label">Shopping List</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-bills')">
+                <div class="more-menu-icon">🧾</div>
+                <div class="more-menu-label">Tagihan Rutin</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-debts')">
+                <div class="more-menu-icon">💳</div>
+                <div class="more-menu-label">Hutang Piutang</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-reports')">
+                <div class="more-menu-icon">📊</div>
+                <div class="more-menu-label">Laporan Keuangan</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-transfers')">
+                <div class="more-menu-icon">⇄</div>
+                <div class="more-menu-label">Riwayat Transfer</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-stock')">
+                <div class="more-menu-icon">📦</div>
+                <div class="more-menu-label">Stok Rumah</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-inventory')">
+                <div class="more-menu-icon">🛋️</div>
+                <div class="more-menu-label">Inventaris</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-services')">
+                <div class="more-menu-icon">🔧</div>
+                <div class="more-menu-label">Jadwal Servis</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-documents')">
+                <div class="more-menu-icon">📄</div>
+                <div class="more-menu-label">Dokumen Penting</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-notes')">
+                <div class="more-menu-icon">📝</div>
+                <div class="more-menu-label">Catatan Bebas</div>
+            </div>
+            <div class="card more-menu-item" onclick="navigateTo('page-settings')">
+                <div class="more-menu-icon">⚙️</div>
+                <div class="more-menu-label">Pengaturan</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== REKENING (dipindah, diakses dari Lainnya) ==================== -->
+
+    <!-- ==================== TABUNGAN ==================== -->
+    <div id="page-savings" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting">
+                <div class="eyebrow">Kelola</div>
+                <h1>Tabungan</h1>
+            </div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-savings')">＋</button>
+        </div>
+        <div id="savings-list"></div>
+    </div>
+
+    <!-- ==================== TO-DO LIST ==================== -->
+    <div id="page-todos" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting">
+                <div class="eyebrow">Kelola</div>
+                <h1>To-do List</h1>
+            </div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-todo')">＋</button>
+        </div>
+        <div class="flex gap-sm" style="padding: 0 4px 16px;">
+            <button class="btn btn-secondary todo-filter active" onclick="switchTodoFilter('')" style="flex:1;">Semua</button>
+            <button class="btn btn-secondary todo-filter" onclick="switchTodoFilter('belum')" style="flex:1;">Belum</button>
+            <button class="btn btn-secondary todo-filter" onclick="switchTodoFilter('selesai')" style="flex:1;">Selesai</button>
+        </div>
+        <div id="todos-list"></div>
+    </div>
+
+    <!-- ==================== KALENDER ==================== -->
+    <div id="page-calendar" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting">
+                <div class="eyebrow">Agenda</div>
+                <h1>Kalender</h1>
+            </div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-calendar')">＋</button>
+        </div>
+        <div id="calendar-list"></div>
+    </div>
+
+    <!-- ==================== SHOPPING LIST ==================== -->
+    <div id="page-shopping" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting">
+                <div class="eyebrow" id="shopping-list-nama">Belanja Bulanan</div>
+                <h1>Shopping List</h1>
+            </div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-shopping-item')">＋</button>
+        </div>
+        <div class="card full-width" id="shopping-summary" style="margin-bottom:16px;"></div>
+        <div id="shopping-items-list"></div>
+        <button class="btn btn-secondary btn-block mt-md" onclick="completeShoppingList()">✓ Selesaikan Belanja Ini</button>
+    </div>
+
+    <!-- ==================== TAGIHAN RUTIN ==================== -->
+    <div id="page-bills" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting">
+                <div class="eyebrow">Kelola</div>
+                <h1>Tagihan Rutin</h1>
+            </div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-bill')">＋</button>
+        </div>
+        <div id="bills-list"></div>
+    </div>
+
+    <!-- ==================== HUTANG & PIUTANG ==================== -->
+    <div id="page-debts" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting">
+                <div class="eyebrow">Kelola</div>
+                <h1>Hutang &amp; Piutang</h1>
+            </div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-debt')">＋</button>
+        </div>
+        <div class="flex gap-sm" style="padding: 0 4px 16px;">
+            <button class="btn btn-secondary debt-filter active" onclick="switchDebtFilter('')" style="flex:1;">Semua</button>
+            <button class="btn btn-secondary debt-filter" onclick="switchDebtFilter('hutang')" style="flex:1;">Hutang</button>
+            <button class="btn btn-secondary debt-filter" onclick="switchDebtFilter('piutang')" style="flex:1;">Piutang</button>
+        </div>
+        <div id="debts-list"></div>
+    </div>
+
+    <!-- ==================== LAPORAN KEUANGAN ==================== -->
+    <div id="page-reports" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting">
+                <div class="eyebrow">Analisis</div>
+                <h1>Laporan Keuangan</h1>
+            </div>
+        </div>
+
+        <div class="card-grid mt-md">
+            <div class="card">
+                <div class="text-muted" style="font-size:12px;">Pemasukan bulan ini</div>
+                <div class="list-item-title" style="font-size:16px; margin-top:4px;" id="report-pemasukan">Rp 0</div>
+                <div id="report-pemasukan-change" style="font-size:11px; margin-top:2px;"></div>
+            </div>
+            <div class="card">
+                <div class="text-muted" style="font-size:12px;">Pengeluaran bulan ini</div>
+                <div class="list-item-title" style="font-size:16px; margin-top:4px;" id="report-pengeluaran">Rp 0</div>
+                <div id="report-pengeluaran-change" style="font-size:11px; margin-top:2px;"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header"><h2>Cash Flow 6 Bulan Terakhir</h2></div>
+            <div class="card full-width">
+                <canvas id="chart-cashflow" height="180"></canvas>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header"><h2>Pengeluaran per Kategori (Bulan Ini)</h2></div>
+            <div class="card full-width">
+                <canvas id="chart-expense-category" height="220"></canvas>
+            </div>
+            <div id="expense-breakdown-list" class="mt-md"></div>
+        </div>
+    </div>
+
+    <!-- ==================== RIWAYAT TRANSFER ==================== -->
+    <div id="page-transfers" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting">
+                <div class="eyebrow">Riwayat</div>
+                <h1>Transfer</h1>
+            </div>
+            <button class="btn-icon" onclick="openTransferSheet()">＋</button>
+        </div>
+        <div id="transfers-list"></div>
+    </div>
+
+    <!-- ==================== STOK RUMAH ==================== -->
+    <div id="page-stock" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting"><div class="eyebrow">Kelola</div><h1>Stok Rumah</h1></div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-stock')">＋</button>
+        </div>
+        <div id="stock-list"></div>
+    </div>
+
+    <!-- ==================== INVENTARIS ==================== -->
+    <div id="page-inventory" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting"><div class="eyebrow">Kelola</div><h1>Inventaris</h1></div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-inventory')">＋</button>
+        </div>
+        <div id="inventory-list"></div>
+    </div>
+
+    <!-- ==================== JADWAL SERVIS ==================== -->
+    <div id="page-services" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting"><div class="eyebrow">Kelola</div><h1>Jadwal Servis</h1></div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-service')">＋</button>
+        </div>
+        <div id="services-list"></div>
+    </div>
+
+    <!-- ==================== DOKUMEN PENTING ==================== -->
+    <div id="page-documents" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting"><div class="eyebrow">Kelola</div><h1>Dokumen Penting</h1></div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-document')">＋</button>
+        </div>
+        <div id="documents-list"></div>
+    </div>
+
+    <!-- ==================== CATATAN BEBAS ==================== -->
+    <div id="page-notes" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting"><div class="eyebrow">Kelola</div><h1>Catatan Bebas</h1></div>
+            <button class="btn-icon" onclick="openSheet('sheet-add-note')">＋</button>
+        </div>
+        <div id="notes-list"></div>
+    </div>
+
+    <!-- ==================== NOTIFIKASI ==================== -->
+    <div id="page-notifications" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-dashboard')">←</button>
+            <div class="header-greeting"><div class="eyebrow">Kotak Masuk</div><h1>Notifikasi</h1></div>
+            <button class="btn-icon" onclick="markAllNotificationsRead()">✓✓</button>
+        </div>
+        <div id="notifications-list"></div>
+    </div>
+
+    <!-- ==================== PENGATURAN ==================== -->
+    <div id="page-settings" class="page hidden">
+        <div class="app-header">
+            <button class="btn-icon" onclick="navigateTo('page-more')">←</button>
+            <div class="header-greeting"><div class="eyebrow">Kelola</div><h1>Pengaturan</h1></div>
+        </div>
+
+        <div class="section-header"><h2>Tampilan</h2></div>
+        <div class="settings-row">
+            <span>Tema Gelap</span>
+            <div class="toggle-switch" id="toggle-theme" onclick="toggleTheme()"></div>
+        </div>
+
+        <div class="section-header mt-md"><h2>Notifikasi</h2></div>
+        <div class="settings-row">
+            <span>Notifikasi Push</span>
+            <div class="toggle-switch" id="toggle-notif-push" onclick="toggleNotifSetting('push')"></div>
+        </div>
+        <div class="settings-row">
+            <span>Notifikasi Email</span>
+            <div class="toggle-switch" id="toggle-notif-email" onclick="toggleNotifSetting('email')"></div>
+        </div>
+
+        <div class="section-header mt-md"><h2>Akun</h2></div>
+        <div class="card full-width">
+            <div class="flex-between">
+                <span class="text-muted" style="font-size:13px;">Nama</span>
+                <span style="font-weight:600;" id="settings-nama">-</span>
+            </div>
+            <div class="flex-between mt-md">
+                <span class="text-muted" style="font-size:13px;">Email</span>
+                <span style="font-weight:600;" id="settings-email">-</span>
+            </div>
+            <div class="flex-between mt-md">
+                <span class="text-muted" style="font-size:13px;">Status Verifikasi</span>
+                <span style="font-weight:600;" id="settings-verified">-</span>
+            </div>
+        </div>
+
+        <button class="btn btn-secondary btn-block mt-md" onclick="logout()">Keluar</button>
+    </div>
+
+    <!-- ==================== BOTTOM NAV ==================== -->
+    <div class="bottom-nav" id="bottom-nav" style="display:none;">
+        <div class="nav-item active" data-page="page-dashboard" onclick="navigateTo('page-dashboard')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>
+            Beranda
+        </div>
+        <div class="nav-item" data-page="page-transactions" onclick="navigateTo('page-transactions')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+            Transaksi
+        </div>
+        <div class="nav-fab" onclick="openSheet('sheet-quick-add')">＋</div>
+        <div class="nav-item" data-page="page-budgets" onclick="navigateTo('page-budgets')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            Anggaran
+        </div>
+        <div class="nav-item" data-page="page-more" onclick="navigateTo('page-more')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+            Lainnya
+        </div>
+    </div>
+
+    <!-- ==================== BOTTOM SHEETS (FORM MODALS) ==================== -->
+
+    <!-- Quick Add: pilih mau catat apa -->
+    <div class="sheet-overlay" id="sheet-quick-add" onclick="closeSheetOnOverlay(event, 'sheet-quick-add')">
+        <div class="sheet-content">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Catat apa?</h3>
+            <button class="btn btn-secondary btn-block mt-md" onclick="closeSheet('sheet-quick-add'); openSheet('sheet-add-expense')">💸 Pengeluaran</button>
+            <button class="btn btn-secondary btn-block mt-md" onclick="closeSheet('sheet-quick-add'); openSheet('sheet-add-income')">💰 Pemasukan</button>
+            <button class="btn btn-secondary btn-block mt-md" onclick="closeSheet('sheet-quick-add'); openTodoSheet()">✅ Tugas Baru</button>
+            <button class="btn btn-secondary btn-block mt-md" onclick="closeSheet('sheet-quick-add'); openSheet('sheet-add-calendar')">📅 Jadwal Baru</button>
+        </div>
+    </div>
+
+    <!-- Form tambah rekening -->
+    <div class="sheet-overlay" id="sheet-add-account" onclick="closeSheetOnOverlay(event, 'sheet-add-account')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Rekening</h3>
+            <form id="form-add-account">
+                <div class="form-group">
+                    <label class="form-label">Nama Rekening</label>
+                    <input type="text" class="form-input" id="account-nama" placeholder="Contoh: BCA Suami" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tipe</label>
+                    <select class="form-select" id="account-tipe" required>
+                        <option value="bank">Rekening Bank</option>
+                        <option value="ewallet">E-Wallet</option>
+                        <option value="tunai">Dompet Tunai</option>
+                        <option value="dana_darurat">Dana Darurat</option>
+                        <option value="kas_rt">Kas Rumah Tangga</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Saldo Awal</label>
+                    <input type="number" class="form-input" id="account-saldo" placeholder="0" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan Rekening</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah pengeluaran -->
+    <div class="sheet-overlay" id="sheet-add-expense" onclick="closeSheetOnOverlay(event, 'sheet-add-expense')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Catat Pengeluaran</h3>
+            <form id="form-add-expense">
+                <div class="form-group">
+                    <label class="form-label">Nominal</label>
+                    <input type="number" class="form-input" id="expense-nominal" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Kategori</label>
+                    <select class="form-select" id="expense-kategori" required>
+                        <option value="belanja_dapur">Belanja Dapur</option>
+                        <option value="makan_luar">Makan di Luar</option>
+                        <option value="listrik">Listrik</option>
+                        <option value="air">Air</option>
+                        <option value="internet">Internet</option>
+                        <option value="bpjs">BPJS</option>
+                        <option value="asuransi">Asuransi</option>
+                        <option value="cicilan">Cicilan</option>
+                        <option value="transportasi">Transportasi</option>
+                        <option value="bensin">Bensin</option>
+                        <option value="pulsa">Pulsa</option>
+                        <option value="hiburan">Hiburan</option>
+                        <option value="pendidikan">Pendidikan</option>
+                        <option value="kesehatan">Kesehatan</option>
+                        <option value="donasi">Donasi</option>
+                        <option value="pajak">Pajak</option>
+                        <option value="lainnya">Lainnya</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Rekening</label>
+                    <select class="form-select" id="expense-account" required></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tanggal</label>
+                    <input type="date" class="form-input" id="expense-tanggal" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Catatan (opsional)</label>
+                    <input type="text" class="form-input" id="expense-catatan" placeholder="Catatan tambahan">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan Pengeluaran</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah pemasukan -->
+    <div class="sheet-overlay" id="sheet-add-income" onclick="closeSheetOnOverlay(event, 'sheet-add-income')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Catat Pemasukan</h3>
+            <form id="form-add-income">
+                <div class="form-group">
+                    <label class="form-label">Nominal</label>
+                    <input type="number" class="form-input" id="income-nominal" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sumber</label>
+                    <select class="form-select" id="income-sumber" required>
+                        <option value="gaji_suami">Gaji Suami</option>
+                        <option value="gaji_istri">Gaji Istri</option>
+                        <option value="bonus">Bonus</option>
+                        <option value="thr">THR</option>
+                        <option value="freelance">Freelance</option>
+                        <option value="investasi">Investasi</option>
+                        <option value="hadiah">Hadiah</option>
+                        <option value="lainnya">Lainnya</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Rekening Tujuan</label>
+                    <select class="form-select" id="income-account" required></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tanggal</label>
+                    <input type="date" class="form-input" id="income-tanggal" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan Pemasukan</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah anggaran -->
+    <div class="sheet-overlay" id="sheet-add-budget" onclick="closeSheetOnOverlay(event, 'sheet-add-budget')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Atur Anggaran</h3>
+            <form id="form-add-budget">
+                <div class="form-group">
+                    <label class="form-label">Kategori</label>
+                    <select class="form-select" id="budget-kategori" required>
+                        <option value="belanja_dapur">Belanja Dapur</option>
+                        <option value="makan_luar">Makan di Luar</option>
+                        <option value="listrik">Listrik</option>
+                        <option value="transportasi">Transportasi</option>
+                        <option value="hiburan">Hiburan</option>
+                        <option value="pendidikan">Pendidikan</option>
+                        <option value="kesehatan">Kesehatan</option>
+                        <option value="lainnya">Lainnya</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target Nominal / Bulan</label>
+                    <input type="number" class="form-input" id="budget-target" placeholder="0" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan Anggaran</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah target tabungan -->
+    <div class="sheet-overlay" id="sheet-add-savings" onclick="closeSheetOnOverlay(event, 'sheet-add-savings')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Buat Target Tabungan</h3>
+            <form id="form-add-savings">
+                <div class="form-group">
+                    <label class="form-label">Nama Target</label>
+                    <input type="text" class="form-input" id="savings-nama" placeholder="Contoh: Dana Darurat, Liburan" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target Nominal</label>
+                    <input type="number" class="form-input" id="savings-target" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target Tanggal (opsional)</label>
+                    <input type="date" class="form-input" id="savings-tanggal">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Buat Target</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form setor tabungan -->
+    <div class="sheet-overlay" id="sheet-deposit-savings" onclick="closeSheetOnOverlay(event, 'sheet-deposit-savings')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Setor Tabungan</h3>
+            <form id="form-deposit-savings">
+                <input type="hidden" id="deposit-goal-uuid">
+                <div class="form-group">
+                    <label class="form-label">Nominal Setoran</label>
+                    <input type="number" class="form-input" id="deposit-nominal" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Ambil dari Rekening (opsional)</label>
+                    <select class="form-select" id="deposit-account">
+                        <option value="">Tidak mengurangi saldo rekening</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tanggal</label>
+                    <input type="date" class="form-input" id="deposit-tanggal" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan Setoran</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah tugas -->
+    <div class="sheet-overlay" id="sheet-add-todo" onclick="closeSheetOnOverlay(event, 'sheet-add-todo')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Tugas</h3>
+            <form id="form-add-todo">
+                <div class="form-group">
+                    <label class="form-label">Judul Tugas</label>
+                    <input type="text" class="form-input" id="todo-judul" placeholder="Contoh: Bayar listrik" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Penanggung Jawab</label>
+                    <select class="form-select" id="todo-assigned">
+                        <option value="">Belum ditugaskan</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Prioritas</label>
+                    <select class="form-select" id="todo-prioritas">
+                        <option value="rendah">Rendah</option>
+                        <option value="sedang" selected>Sedang</option>
+                        <option value="tinggi">Tinggi</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Deadline (opsional)</label>
+                    <input type="datetime-local" class="form-input" id="todo-deadline">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan Tugas</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah jadwal kalender -->
+    <div class="sheet-overlay" id="sheet-add-calendar" onclick="closeSheetOnOverlay(event, 'sheet-add-calendar')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Jadwal</h3>
+            <form id="form-add-calendar">
+                <div class="form-group">
+                    <label class="form-label">Judul</label>
+                    <input type="text" class="form-input" id="calendar-judul" placeholder="Contoh: Janji dokter" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tipe</label>
+                    <select class="form-select" id="calendar-tipe">
+                        <option value="kerja">Kerja</option>
+                        <option value="cuti">Cuti</option>
+                        <option value="dokter">Janji Dokter</option>
+                        <option value="liburan">Liburan</option>
+                        <option value="keluarga">Acara Keluarga</option>
+                        <option value="ulang_tahun">Ulang Tahun</option>
+                        <option value="anniversary">Hari Jadi Pernikahan</option>
+                        <option value="lainnya">Lainnya</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tanggal & Waktu Mulai</label>
+                    <input type="datetime-local" class="form-input" id="calendar-mulai" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Lokasi (opsional)</label>
+                    <input type="text" class="form-input" id="calendar-lokasi" placeholder="Lokasi acara">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan Jadwal</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah item belanja -->
+    <div class="sheet-overlay" id="sheet-add-shopping-item" onclick="closeSheetOnOverlay(event, 'sheet-add-shopping-item')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Barang</h3>
+            <form id="form-add-shopping-item">
+                <div class="form-group">
+                    <label class="form-label">Nama Barang</label>
+                    <input type="text" class="form-input" id="shopping-item-nama" placeholder="Contoh: Beras 5kg" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Jumlah (opsional)</label>
+                    <input type="text" class="form-input" id="shopping-item-jumlah" placeholder="Contoh: 2 pcs">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Estimasi Harga (opsional)</label>
+                    <input type="number" class="form-input" id="shopping-item-harga" placeholder="0">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Tambah ke Daftar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah tagihan rutin -->
+    <div class="sheet-overlay" id="sheet-add-bill" onclick="closeSheetOnOverlay(event, 'sheet-add-bill')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Tagihan Rutin</h3>
+            <form id="form-add-bill">
+                <div class="form-group">
+                    <label class="form-label">Nama Tagihan</label>
+                    <input type="text" class="form-input" id="bill-nama" placeholder="Contoh: PLN, Netflix, Internet" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Nominal (opsional, bisa beda tiap bulan)</label>
+                    <input type="number" class="form-input" id="bill-nominal" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tanggal Jatuh Tempo (1-31)</label>
+                    <input type="number" class="form-input" id="bill-tanggal" min="1" max="31" placeholder="Contoh: 20" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Ingatkan Berapa Hari Sebelumnya</label>
+                    <input type="number" class="form-input" id="bill-reminder" value="3" min="0">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan Tagihan</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form bayar tagihan -->
+    <div class="sheet-overlay" id="sheet-pay-bill" onclick="closeSheetOnOverlay(event, 'sheet-pay-bill')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Bayar Tagihan</h3>
+            <form id="form-pay-bill">
+                <input type="hidden" id="pay-bill-id">
+                <div class="form-group">
+                    <label class="form-label">Nominal Dibayar</label>
+                    <input type="number" class="form-input" id="pay-bill-nominal" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Bayar dari Rekening (opsional)</label>
+                    <select class="form-select" id="pay-bill-account">
+                        <option value="">Tidak mengurangi saldo rekening</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tanggal Bayar</label>
+                    <input type="date" class="form-input" id="pay-bill-tanggal" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Konfirmasi Pembayaran</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah hutang/piutang -->
+    <div class="sheet-overlay" id="sheet-add-debt" onclick="closeSheetOnOverlay(event, 'sheet-add-debt')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Hutang / Piutang</h3>
+            <form id="form-add-debt">
+                <div class="form-group">
+                    <label class="form-label">Tipe</label>
+                    <select class="form-select" id="debt-tipe" required>
+                        <option value="hutang">Hutang (saya berhutang)</option>
+                        <option value="piutang">Piutang (orang berhutang ke saya)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Nama Pihak</label>
+                    <input type="text" class="form-input" id="debt-pihak" placeholder="Contoh: Bank BCA, Budi" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Nominal Total</label>
+                    <input type="number" class="form-input" id="debt-nominal" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tanggal Mulai</label>
+                    <input type="date" class="form-input" id="debt-mulai" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Jatuh Tempo (opsional)</label>
+                    <input type="date" class="form-input" id="debt-jatuh-tempo">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Catatan (opsional)</label>
+                    <input type="text" class="form-input" id="debt-catatan">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form bayar cicilan hutang/piutang -->
+    <div class="sheet-overlay" id="sheet-pay-debt" onclick="closeSheetOnOverlay(event, 'sheet-pay-debt')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title" id="pay-debt-title">Bayar Cicilan</h3>
+            <form id="form-pay-debt">
+                <input type="hidden" id="pay-debt-uuid">
+                <div class="form-group">
+                    <label class="form-label">Nominal</label>
+                    <input type="number" class="form-input" id="pay-debt-nominal" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" id="pay-debt-account-label">Rekening (opsional)</label>
+                    <select class="form-select" id="pay-debt-account">
+                        <option value="">Tidak melibatkan rekening</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tanggal</label>
+                    <input type="date" class="form-input" id="pay-debt-tanggal" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan Pembayaran</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form transfer antar rekening -->
+    <div class="sheet-overlay" id="sheet-transfer" onclick="closeSheetOnOverlay(event, 'sheet-transfer')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Transfer Antar Rekening</h3>
+            <form id="form-transfer">
+                <div class="form-group">
+                    <label class="form-label">Dari Rekening</label>
+                    <select class="form-select" id="transfer-from" required></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Ke Rekening</label>
+                    <select class="form-select" id="transfer-to" required></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Nominal</label>
+                    <input type="number" class="form-input" id="transfer-nominal" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tanggal</label>
+                    <input type="date" class="form-input" id="transfer-tanggal" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Catatan (opsional)</label>
+                    <input type="text" class="form-input" id="transfer-catatan">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Transfer Sekarang</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah stok -->
+    <div class="sheet-overlay" id="sheet-add-stock" onclick="closeSheetOnOverlay(event, 'sheet-add-stock')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Stok Barang</h3>
+            <form id="form-add-stock">
+                <div class="form-group"><label class="form-label">Nama Barang</label><input type="text" class="form-input" id="stock-nama" placeholder="Contoh: Beras" required></div>
+                <div class="form-group"><label class="form-label">Jumlah Saat Ini</label><input type="number" class="form-input" id="stock-jumlah" placeholder="0" required></div>
+                <div class="form-group"><label class="form-label">Satuan</label><input type="text" class="form-input" id="stock-satuan" placeholder="Contoh: kg, liter, pcs"></div>
+                <div class="form-group"><label class="form-label">Ambang Batas Minimum</label><input type="number" class="form-input" id="stock-ambang" placeholder="0"></div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah inventaris -->
+    <div class="sheet-overlay" id="sheet-add-inventory" onclick="closeSheetOnOverlay(event, 'sheet-add-inventory')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Barang Inventaris</h3>
+            <form id="form-add-inventory">
+                <div class="form-group"><label class="form-label">Nama Barang</label><input type="text" class="form-input" id="inv-nama" placeholder="Contoh: TV, Kulkas" required></div>
+                <div class="form-group"><label class="form-label">Lokasi</label><input type="text" class="form-input" id="inv-lokasi" placeholder="Contoh: Ruang Tamu"></div>
+                <div class="form-group"><label class="form-label">Harga Beli</label><input type="number" class="form-input" id="inv-harga" placeholder="0"></div>
+                <div class="form-group"><label class="form-label">Tanggal Beli</label><input type="date" class="form-input" id="inv-tanggal-beli"></div>
+                <div class="form-group"><label class="form-label">Garansi Sampai (opsional)</label><input type="date" class="form-input" id="inv-garansi"></div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah jadwal servis -->
+    <div class="sheet-overlay" id="sheet-add-service" onclick="closeSheetOnOverlay(event, 'sheet-add-service')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Jadwal Servis</h3>
+            <form id="form-add-service">
+                <div class="form-group"><label class="form-label">Nama Item</label><input type="text" class="form-input" id="service-nama" placeholder="Contoh: AC, Mobil" required></div>
+                <div class="form-group"><label class="form-label">Jenis Servis</label><input type="text" class="form-input" id="service-jenis" placeholder="Contoh: Ganti oli, Cuci AC"></div>
+                <div class="form-group"><label class="form-label">Servis Terakhir</label><input type="date" class="form-input" id="service-terakhir"></div>
+                <div class="form-group"><label class="form-label">Interval (hari)</label><input type="number" class="form-input" id="service-interval" placeholder="Contoh: 90"></div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah dokumen -->
+    <div class="sheet-overlay" id="sheet-add-document" onclick="closeSheetOnOverlay(event, 'sheet-add-document')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Dokumen</h3>
+            <form id="form-add-document">
+                <div class="form-group">
+                    <label class="form-label">Jenis Dokumen</label>
+                    <select class="form-select" id="doc-jenis" required>
+                        <option value="ktp">KTP</option><option value="kk">KK</option><option value="npwp">NPWP</option>
+                        <option value="bpjs">BPJS</option><option value="sim">SIM</option><option value="stnk">STNK</option>
+                        <option value="bpkb">BPKB</option><option value="sertifikat">Sertifikat</option><option value="polis">Polis Asuransi</option>
+                        <option value="lainnya">Lainnya</option>
+                    </select>
+                </div>
+                <div class="form-group"><label class="form-label">Nama Dokumen</label><input type="text" class="form-input" id="doc-nama" placeholder="Contoh: KTP Suami" required></div>
+                <div class="form-group"><label class="form-label">Nomor Dokumen (opsional)</label><input type="text" class="form-input" id="doc-nomor"></div>
+                <div class="form-group"><label class="form-label">Berlaku Sampai (opsional)</label><input type="date" class="form-input" id="doc-berlaku"></div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form tambah catatan -->
+    <div class="sheet-overlay" id="sheet-add-note" onclick="closeSheetOnOverlay(event, 'sheet-add-note')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title">Tambah Catatan</h3>
+            <form id="form-add-note">
+                <div class="form-group"><label class="form-label">Judul</label><input type="text" class="form-input" id="note-judul" placeholder="Contoh: Ide liburan" required></div>
+                <div class="form-group"><label class="form-label">Isi Catatan</label><textarea class="form-textarea" id="note-isi" rows="5" placeholder="Tulis catatan di sini..."></textarea></div>
+                <button type="submit" class="btn btn-primary btn-block">Simpan</button>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>
