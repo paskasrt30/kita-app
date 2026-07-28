@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS income (
     uuid TEXT UNIQUE NOT NULL,
     couple_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
-    account_id INTEGER NOT NULL,
+    account_id INTEGER,
     tanggal DATE NOT NULL,
     nominal REAL NOT NULL,
     sumber TEXT, -- gaji_suami, gaji_istri, bonus, thr, freelance, investasi, hadiah, lainnya
@@ -72,6 +72,10 @@ CREATE TABLE IF NOT EXISTS income (
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (account_id) REFERENCES accounts(id)
 );
+
+-- Tabel income sudah pernah dibuat dengan account_id NOT NULL sebelum pemasukan
+-- dilepas dari keterikatan rekening -> longgarkan constraint-nya di database yang sudah ada
+ALTER TABLE income ALTER COLUMN account_id DROP NOT NULL;
 
 -- ---------- 5. PENGELUARAN ----------
 CREATE TABLE IF NOT EXISTS expenses (

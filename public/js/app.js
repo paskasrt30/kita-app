@@ -344,7 +344,6 @@ async function loadAccounts() {
 function populateAccountDropdowns() {
     const options = state.accounts.map(a => `<option value="${a.id}">${a.nama_rekening}</option>`).join('');
     document.getElementById('expense-account').innerHTML = options || '<option value="">Belum ada rekening</option>';
-    document.getElementById('income-account').innerHTML = options || '<option value="">Belum ada rekening</option>';
 }
 
 document.getElementById('form-add-account').addEventListener('submit', async (e) => {
@@ -401,7 +400,7 @@ async function loadTransactions() {
                 </div>
                 <div class="list-item-body">
                     <div class="list-item-title">${KATEGORI_LABELS[item.kategori] || SUMBER_LABELS[item.sumber] || item.kategori || item.sumber || 'Lainnya'}</div>
-                    <div class="list-item-subtitle">${item.nama_rekening} · ${formatTanggal(item.tanggal)}</div>
+                    <div class="list-item-subtitle">${item.nama_rekening ? item.nama_rekening + ' · ' : ''}${formatTanggal(item.tanggal)}</div>
                 </div>
                 <div class="list-item-value ${activeTransactionTab === 'expense' ? 'expense' : 'income'}">
                     ${activeTransactionTab === 'expense' ? '-' : '+'}${formatRupiah(item.nominal)}
@@ -445,7 +444,6 @@ document.getElementById('form-add-income').addEventListener('submit', async (e) 
         await apiCall('/income', {
             method: 'POST',
             body: JSON.stringify({
-                account_id: Number(document.getElementById('income-account').value),
                 nominal: Number(document.getElementById('income-nominal').value),
                 sumber: document.getElementById('income-sumber').value,
                 tanggal: document.getElementById('income-tanggal').value

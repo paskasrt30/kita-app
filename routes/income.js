@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
         let sql = `
             SELECT i.*, a.nama_rekening, u.nama as nama_user
             FROM income i
-            JOIN accounts a ON i.account_id = a.id
+            LEFT JOIN accounts a ON i.account_id = a.id
             JOIN users u ON i.user_id = u.id
             WHERE i.couple_id = ?
         `;
@@ -49,27 +49,31 @@ router.post('/', async (req, res) => {
     const insertTx = db.transaction(async (body, userId, coupleId) => {
         const { account_id, tanggal, nominal, sumber, kategori, catatan } = body;
 
-        if (!account_id || !tanggal || !nominal) {
-            throw { statusCode: 400, message: 'Rekening tujuan, tanggal, dan nominal wajib diisi' };
+        if (!tanggal || !nominal) {
+            throw { statusCode: 400, message: 'Tanggal dan nominal wajib diisi' };
         }
 
         if (nominal <= 0) {
             throw { statusCode: 400, message: 'Nominal harus lebih besar dari 0' };
         }
 
-        const account = await db.prepare('SELECT * FROM accounts WHERE id = ? AND couple_id = ?').get(account_id, coupleId);
-        if (!account) {
-            throw { statusCode: 404, message: 'Rekening tidak ditemukan' };
+        if (account_id) {
+            const account = await db.prepare('SELECT * FROM accounts WHERE id = ? AND couple_id = ?').get(account_id, coupleId);
+            if (!account) {
+                throw { statusCode: 404, message: 'Rekening tidak ditemukan' };
+            }
         }
 
         const incomeUuid = uuidv4();
         const result = await db.prepare(`
             INSERT INTO income (uuid, couple_id, user_id, account_id, tanggal, nominal, sumber, kategori, catatan)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(incomeUuid, coupleId, userId, account_id, tanggal, nominal, sumber || null, kategori || null, catatan || null);
+        `).run(incomeUuid, coupleId, userId, account_id || null, tanggal, nominal, sumber || null, kategori || null, catatan || null);
 
-        // Update saldo rekening
-        await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini + ? WHERE id = ?').run(nominal, account_id);
+        // Update saldo rekening (kalau pemasukan ini dikaitkan dengan rekening)
+        if (account_id) {
+            await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini + ? WHERE id = ?').run(nominal, account_id);
+        }
 
         return result.lastInsertRowid;
     });
@@ -96,9 +100,11 @@ router.delete('/:uuid', async (req, res) => {
             throw { statusCode: 404, message: 'Data pemasukan tidak ditemukan' };
         }
 
-        // Kembalikan saldo rekening (kurangi karena pemasukan dibatalkan)
-        await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini - ? WHERE id = ?')
-            .run(income.nominal, income.account_id);
+        // Kembalikan saldo rekening (kurangi karena pemasukan dibatalkan), kalau ada rekening terkait
+        if (income.account_id) {
+            await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini - ? WHERE id = ?')
+                .run(income.nominal, income.account_id);
+        }
 
         await db.prepare('DELETE FROM income WHERE uuid = ?').run(uuid);
     });
