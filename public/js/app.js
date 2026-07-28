@@ -334,16 +334,9 @@ async function loadAccounts() {
             </div>
         `).join('');
 
-        populateAccountDropdowns();
-
     } catch (err) {
         console.error('Gagal memuat rekening:', err.message);
     }
-}
-
-function populateAccountDropdowns() {
-    const options = state.accounts.map(a => `<option value="${a.id}">${a.nama_rekening}</option>`).join('');
-    document.getElementById('expense-account').innerHTML = options || '<option value="">Belum ada rekening</option>';
 }
 
 document.getElementById('form-add-account').addEventListener('submit', async (e) => {
@@ -419,7 +412,6 @@ document.getElementById('form-add-expense').addEventListener('submit', async (e)
         await apiCall('/expenses', {
             method: 'POST',
             body: JSON.stringify({
-                account_id: Number(document.getElementById('expense-account').value),
                 nominal: Number(document.getElementById('expense-nominal').value),
                 kategori: document.getElementById('expense-kategori').value,
                 tanggal: document.getElementById('expense-tanggal').value,

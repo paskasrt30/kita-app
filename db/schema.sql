@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     uuid TEXT UNIQUE NOT NULL,
     couple_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
-    account_id INTEGER NOT NULL,
+    account_id INTEGER,
     tanggal DATE NOT NULL,
     nominal REAL NOT NULL,
     kategori TEXT NOT NULL, -- belanja_dapur, makan_luar, listrik, air, internet, bpjs, dst
@@ -95,6 +95,10 @@ CREATE TABLE IF NOT EXISTS expenses (
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (account_id) REFERENCES accounts(id)
 );
+
+-- Tabel expenses sudah pernah dibuat dengan account_id NOT NULL sebelum pengeluaran
+-- dilepas dari keterikatan rekening -> longgarkan constraint-nya di database yang sudah ada
+ALTER TABLE expenses ALTER COLUMN account_id DROP NOT NULL;
 
 -- ---------- 6. TRANSFER ----------
 CREATE TABLE IF NOT EXISTS transfers (
