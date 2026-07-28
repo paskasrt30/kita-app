@@ -7,41 +7,46 @@ const router = express.Router();
 router.use(authMiddleware, requireCouple);
 
 // ==================== GET ANGGARAN + REALISASI BULAN INI ====================
-router.get('/', (req, res) => {
-    const now = new Date();
-    const bulan = req.query.bulan || String(now.getMonth() + 1).padStart(2, '0');
-    const tahun = req.query.tahun || String(now.getFullYear());
+router.get('/', async (req, res) => {
+    try {
+        const now = new Date();
+        const bulan = req.query.bulan || String(now.getMonth() + 1).padStart(2, '0');
+        const tahun = req.query.tahun || String(now.getFullYear());
 
-    const budgets = db.prepare(`
-        SELECT * FROM budgets WHERE couple_id = ? AND bulan = ? AND tahun = ?
-    `).all(req.user.couple_id, Number(bulan), Number(tahun));
+        const budgets = await db.prepare(`
+            SELECT * FROM budgets WHERE couple_id = ? AND bulan = ? AND tahun = ?
+        `).all(req.user.couple_id, Number(bulan), Number(tahun));
 
-    // Hitung realisasi tiap kategori dari tabel expenses
-    const result = budgets.map(b => {
-        const realisasi = db.prepare(`
-            SELECT COALESCE(SUM(nominal), 0) as total FROM expenses
-            WHERE couple_id = ? AND kategori = ?
-            AND strftime('%m', tanggal) = ? AND strftime('%Y', tanggal) = ?
-        `).get(req.user.couple_id, b.kategori, String(bulan).padStart(2, '0'), String(tahun));
+        // Hitung realisasi tiap kategori dari tabel expenses
+        const result = await Promise.all(budgets.map(async b => {
+            const realisasi = await db.prepare(`
+                SELECT COALESCE(SUM(nominal), 0) as total FROM expenses
+                WHERE couple_id = ? AND kategori = ?
+                AND TO_CHAR(tanggal, 'MM') = ? AND TO_CHAR(tanggal, 'YYYY') = ?
+            `).get(req.user.couple_id, b.kategori, String(bulan).padStart(2, '0'), String(tahun));
 
-        const realisasiNominal = realisasi.total;
-        const sisa = b.target_nominal - realisasiNominal;
-        const persentase = b.target_nominal > 0 ? (realisasiNominal / b.target_nominal) * 100 : 0;
+            const realisasiNominal = realisasi.total;
+            const sisa = b.target_nominal - realisasiNominal;
+            const persentase = b.target_nominal > 0 ? (realisasiNominal / b.target_nominal) * 100 : 0;
 
-        return {
-            ...b,
-            realisasi: realisasiNominal,
-            sisa,
-            persentase: Math.round(persentase * 10) / 10,
-            status: persentase >= 100 ? 'melebihi' : persentase >= 80 ? 'hampir_habis' : 'aman'
-        };
-    });
+            return {
+                ...b,
+                realisasi: realisasiNominal,
+                sisa,
+                persentase: Math.round(persentase * 10) / 10,
+                status: persentase >= 100 ? 'melebihi' : persentase >= 80 ? 'hampir_habis' : 'aman'
+            };
+        }));
 
-    res.json({ status: 'success', data: result });
+        res.json({ status: 'success', data: result });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
+    }
 });
 
 // ==================== SET / UPDATE ANGGARAN ====================
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const { kategori, bulan, tahun, target_nominal } = req.body;
 
@@ -52,15 +57,15 @@ router.post('/', (req, res) => {
             });
         }
 
-        const existing = db.prepare(`
+        const existing = await db.prepare(`
             SELECT id FROM budgets WHERE couple_id = ? AND kategori = ? AND bulan = ? AND tahun = ?
         `).get(req.user.couple_id, kategori, bulan, tahun);
 
         if (existing) {
-            db.prepare('UPDATE budgets SET target_nominal = ? WHERE id = ?').run(target_nominal, existing.id);
+            await db.prepare('UPDATE budgets SET target_nominal = ? WHERE id = ?').run(target_nominal, existing.id);
         } else {
             const budgetUuid = uuidv4();
-            db.prepare(`
+            await db.prepare(`
                 INSERT INTO budgets (uuid, couple_id, kategori, bulan, tahun, target_nominal)
                 VALUES (?, ?, ?, ?, ?, ?)
             `).run(budgetUuid, req.user.couple_id, kategori, bulan, tahun, target_nominal);
@@ -75,16 +80,21 @@ router.post('/', (req, res) => {
 });
 
 // ==================== HAPUS ANGGARAN ====================
-router.delete('/:id', (req, res) => {
-    const budget = db.prepare('SELECT * FROM budgets WHERE id = ? AND couple_id = ?')
-        .get(req.params.id, req.user.couple_id);
+router.delete('/:id', async (req, res) => {
+    try {
+        const budget = await db.prepare('SELECT * FROM budgets WHERE id = ? AND couple_id = ?')
+            .get(req.params.id, req.user.couple_id);
 
-    if (!budget) {
-        return res.status(404).json({ status: 'error', message: 'Anggaran tidak ditemukan' });
+        if (!budget) {
+            return res.status(404).json({ status: 'error', message: 'Anggaran tidak ditemukan' });
+        }
+
+        await db.prepare('DELETE FROM budgets WHERE id = ?').run(req.params.id);
+        res.json({ status: 'success', message: 'Anggaran berhasil dihapus' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
     }
-
-    db.prepare('DELETE FROM budgets WHERE id = ?').run(req.params.id);
-    res.json({ status: 'success', message: 'Anggaran berhasil dihapus' });
 });
 
 module.exports = router;

@@ -7,56 +7,66 @@ const router = express.Router();
 router.use(authMiddleware, requireCouple);
 
 // ==================== GET DAFTAR HUTANG/PIUTANG ====================
-router.get('/', (req, res) => {
-    const { tipe, status } = req.query;
+router.get('/', async (req, res) => {
+    try {
+        const { tipe, status } = req.query;
 
-    let sql = 'SELECT * FROM debts WHERE couple_id = ?';
-    const params = [req.user.couple_id];
+        let sql = 'SELECT * FROM debts WHERE couple_id = ?';
+        const params = [req.user.couple_id];
 
-    if (tipe) {
-        sql += ' AND tipe = ?';
-        params.push(tipe);
+        if (tipe) {
+            sql += ' AND tipe = ?';
+            params.push(tipe);
+        }
+        if (status) {
+            sql += ' AND status = ?';
+            params.push(status);
+        }
+
+        sql += ' ORDER BY jatuh_tempo ASC, created_at DESC';
+
+        const debts = await db.prepare(sql).all(...params);
+
+        const data = debts.map(d => ({
+            ...d,
+            sisa: d.nominal_total - d.nominal_terbayar,
+            persentase_terbayar: d.nominal_total > 0 ? Math.round((d.nominal_terbayar / d.nominal_total) * 1000) / 10 : 0
+        }));
+
+        res.json({ status: 'success', data });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
     }
-    if (status) {
-        sql += ' AND status = ?';
-        params.push(status);
-    }
-
-    sql += ' ORDER BY jatuh_tempo ASC, created_at DESC';
-
-    const debts = db.prepare(sql).all(...params);
-
-    const data = debts.map(d => ({
-        ...d,
-        sisa: d.nominal_total - d.nominal_terbayar,
-        persentase_terbayar: d.nominal_total > 0 ? Math.round((d.nominal_terbayar / d.nominal_total) * 1000) / 10 : 0
-    }));
-
-    res.json({ status: 'success', data });
 });
 
 // ==================== DETAIL + RIWAYAT PEMBAYARAN ====================
-router.get('/:uuid', (req, res) => {
-    const debt = db.prepare('SELECT * FROM debts WHERE uuid = ? AND couple_id = ?').get(req.params.uuid, req.user.couple_id);
+router.get('/:uuid', async (req, res) => {
+    try {
+        const debt = await db.prepare('SELECT * FROM debts WHERE uuid = ? AND couple_id = ?').get(req.params.uuid, req.user.couple_id);
 
-    if (!debt) {
-        return res.status(404).json({ status: 'error', message: 'Data hutang/piutang tidak ditemukan' });
-    }
-
-    const payments = db.prepare('SELECT * FROM debt_payments WHERE debt_id = ? ORDER BY tanggal DESC').all(debt.id);
-
-    res.json({
-        status: 'success',
-        data: {
-            ...debt,
-            sisa: debt.nominal_total - debt.nominal_terbayar,
-            riwayat: payments
+        if (!debt) {
+            return res.status(404).json({ status: 'error', message: 'Data hutang/piutang tidak ditemukan' });
         }
-    });
+
+        const payments = await db.prepare('SELECT * FROM debt_payments WHERE debt_id = ? ORDER BY tanggal DESC').all(debt.id);
+
+        res.json({
+            status: 'success',
+            data: {
+                ...debt,
+                sisa: debt.nominal_total - debt.nominal_terbayar,
+                riwayat: payments
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
+    }
 });
 
 // ==================== TAMBAH HUTANG/PIUTANG ====================
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const { tipe, nama_pihak, nominal_total, tanggal_mulai, jatuh_tempo, catatan } = req.body;
 
@@ -69,12 +79,12 @@ router.post('/', (req, res) => {
         }
 
         const debtUuid = uuidv4();
-        const result = db.prepare(`
+        const result = await db.prepare(`
             INSERT INTO debts (uuid, couple_id, tipe, nama_pihak, nominal_total, tanggal_mulai, jatuh_tempo, catatan)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).run(debtUuid, req.user.couple_id, tipe, nama_pihak, nominal_total, tanggal_mulai, jatuh_tempo || null, catatan || null);
 
-        const newDebt = db.prepare('SELECT * FROM debts WHERE id = ?').get(result.lastInsertRowid);
+        const newDebt = await db.prepare('SELECT * FROM debts WHERE id = ?').get(result.lastInsertRowid);
 
         res.status(201).json({ status: 'success', message: 'Data berhasil ditambahkan', data: newDebt });
 
@@ -85,8 +95,8 @@ router.post('/', (req, res) => {
 });
 
 // ==================== CATAT PEMBAYARAN / CICILAN ====================
-router.post('/:uuid/payment', (req, res) => {
-    const payTx = db.transaction((uuid, coupleId, body) => {
+router.post('/:uuid/payment', async (req, res) => {
+    const payTx = db.transaction(async (uuid, coupleId, body) => {
         const { nominal, tanggal, catatan, account_id } = body;
 
         if (!nominal || nominal <= 0) {
@@ -96,7 +106,7 @@ router.post('/:uuid/payment', (req, res) => {
             throw { statusCode: 400, message: 'Tanggal wajib diisi' };
         }
 
-        const debt = db.prepare('SELECT * FROM debts WHERE uuid = ? AND couple_id = ?').get(uuid, coupleId);
+        const debt = await db.prepare('SELECT * FROM debts WHERE uuid = ? AND couple_id = ?').get(uuid, coupleId);
         if (!debt) {
             throw { statusCode: 404, message: 'Data hutang/piutang tidak ditemukan' };
         }
@@ -109,16 +119,16 @@ router.post('/:uuid/payment', (req, res) => {
         // Jika hutang (kita berhutang) dan bayar pakai rekening -> saldo berkurang
         // Jika piutang (orang berhutang ke kita) dan mereka bayar ke rekening kita -> saldo bertambah
         if (account_id) {
-            const account = db.prepare('SELECT * FROM accounts WHERE id = ? AND couple_id = ?').get(account_id, coupleId);
+            const account = await db.prepare('SELECT * FROM accounts WHERE id = ? AND couple_id = ?').get(account_id, coupleId);
             if (!account) {
                 throw { statusCode: 404, message: 'Rekening tidak ditemukan' };
             }
             const perubahanSaldo = debt.tipe === 'hutang' ? -nominal : nominal;
-            db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini + ? WHERE id = ?').run(perubahanSaldo, account_id);
+            await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini + ? WHERE id = ?').run(perubahanSaldo, account_id);
         }
 
         const paymentUuid = uuidv4();
-        db.prepare(`
+        await db.prepare(`
             INSERT INTO debt_payments (uuid, debt_id, nominal, tanggal, catatan)
             VALUES (?, ?, ?, ?, ?)
         `).run(paymentUuid, debt.id, nominal, tanggal, catatan || null);
@@ -126,14 +136,14 @@ router.post('/:uuid/payment', (req, res) => {
         const totalTerbayarBaru = debt.nominal_terbayar + nominal;
         const statusBaru = totalTerbayarBaru >= debt.nominal_total ? 'lunas' : 'belum_lunas';
 
-        db.prepare('UPDATE debts SET nominal_terbayar = ?, status = ? WHERE id = ?')
+        await db.prepare('UPDATE debts SET nominal_terbayar = ?, status = ? WHERE id = ?')
             .run(totalTerbayarBaru, statusBaru, debt.id);
 
         return { statusBaru, lunas: statusBaru === 'lunas' };
     });
 
     try {
-        const result = payTx(req.params.uuid, req.user.couple_id, req.body);
+        const result = await payTx(req.params.uuid, req.user.couple_id, req.body);
         res.status(201).json({
             status: 'success',
             message: result.lunas ? '🎉 Lunas!' : 'Pembayaran berhasil dicatat',
@@ -146,39 +156,49 @@ router.post('/:uuid/payment', (req, res) => {
 });
 
 // ==================== UPDATE HUTANG/PIUTANG ====================
-router.put('/:uuid', (req, res) => {
-    const debt = db.prepare('SELECT * FROM debts WHERE uuid = ? AND couple_id = ?').get(req.params.uuid, req.user.couple_id);
+router.put('/:uuid', async (req, res) => {
+    try {
+        const debt = await db.prepare('SELECT * FROM debts WHERE uuid = ? AND couple_id = ?').get(req.params.uuid, req.user.couple_id);
 
-    if (!debt) {
-        return res.status(404).json({ status: 'error', message: 'Data tidak ditemukan' });
+        if (!debt) {
+            return res.status(404).json({ status: 'error', message: 'Data tidak ditemukan' });
+        }
+
+        const { nama_pihak, jatuh_tempo, catatan } = req.body;
+
+        await db.prepare(`
+            UPDATE debts SET
+                nama_pihak = COALESCE(?, nama_pihak),
+                jatuh_tempo = COALESCE(?, jatuh_tempo),
+                catatan = COALESCE(?, catatan)
+            WHERE uuid = ?
+        `).run(nama_pihak, jatuh_tempo, catatan, req.params.uuid);
+
+        const updated = await db.prepare('SELECT * FROM debts WHERE uuid = ?').get(req.params.uuid);
+        res.json({ status: 'success', message: 'Data berhasil diperbarui', data: updated });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
     }
-
-    const { nama_pihak, jatuh_tempo, catatan } = req.body;
-
-    db.prepare(`
-        UPDATE debts SET
-            nama_pihak = COALESCE(?, nama_pihak),
-            jatuh_tempo = COALESCE(?, jatuh_tempo),
-            catatan = COALESCE(?, catatan)
-        WHERE uuid = ?
-    `).run(nama_pihak, jatuh_tempo, catatan, req.params.uuid);
-
-    const updated = db.prepare('SELECT * FROM debts WHERE uuid = ?').get(req.params.uuid);
-    res.json({ status: 'success', message: 'Data berhasil diperbarui', data: updated });
 });
 
 // ==================== HAPUS HUTANG/PIUTANG ====================
-router.delete('/:uuid', (req, res) => {
-    const debt = db.prepare('SELECT * FROM debts WHERE uuid = ? AND couple_id = ?').get(req.params.uuid, req.user.couple_id);
+router.delete('/:uuid', async (req, res) => {
+    try {
+        const debt = await db.prepare('SELECT * FROM debts WHERE uuid = ? AND couple_id = ?').get(req.params.uuid, req.user.couple_id);
 
-    if (!debt) {
-        return res.status(404).json({ status: 'error', message: 'Data tidak ditemukan' });
+        if (!debt) {
+            return res.status(404).json({ status: 'error', message: 'Data tidak ditemukan' });
+        }
+
+        await db.prepare('DELETE FROM debt_payments WHERE debt_id = ?').run(debt.id);
+        await db.prepare('DELETE FROM debts WHERE uuid = ?').run(req.params.uuid);
+
+        res.json({ status: 'success', message: 'Data berhasil dihapus' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
     }
-
-    db.prepare('DELETE FROM debt_payments WHERE debt_id = ?').run(debt.id);
-    db.prepare('DELETE FROM debts WHERE uuid = ?').run(req.params.uuid);
-
-    res.json({ status: 'success', message: 'Data berhasil dihapus' });
 });
 
 module.exports = router;

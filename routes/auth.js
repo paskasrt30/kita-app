@@ -30,7 +30,7 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+        const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
         if (existing) {
             return res.status(409).json({
                 status: 'error',
@@ -42,13 +42,13 @@ router.post('/register', async (req, res) => {
         const userUuid = uuidv4();
         const verificationToken = crypto.randomBytes(32).toString('hex');
 
-        const result = db.prepare(`
+        const result = await db.prepare(`
             INSERT INTO users (uuid, nama, email, password_hash, verification_token)
             VALUES (?, ?, ?, ?, ?)
         `).run(userUuid, nama, email, passwordHash, verificationToken);
 
         // Buat pengaturan default untuk user baru
-        db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(result.lastInsertRowid);
+        await db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(result.lastInsertRowid);
 
         const appUrl = `${req.protocol}://${req.get('host')}`;
         const emailResult = await kirimEmailVerifikasi(email, nama, verificationToken, appUrl);
@@ -73,27 +73,33 @@ router.post('/register', async (req, res) => {
 });
 
 // ==================== VERIFIKASI EMAIL ====================
-router.get('/verify-email', (req, res) => {
-    const { token } = req.query;
+router.get('/verify-email', async (req, res) => {
+    try {
+        const { token } = req.query;
 
-    if (!token) {
-        return res.status(400).json({ status: 'error', message: 'Token verifikasi wajib diisi' });
+        if (!token) {
+            return res.status(400).json({ status: 'error', message: 'Token verifikasi wajib diisi' });
+        }
+
+        const user = await db.prepare('SELECT id FROM users WHERE verification_token = ?').get(token);
+
+        if (!user) {
+            return res.status(400).json({ status: 'error', message: 'Token verifikasi tidak valid' });
+        }
+
+        await db.prepare('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?').run(user.id);
+
+        res.json({ status: 'success', message: 'Email berhasil diverifikasi' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
     }
-
-    const user = db.prepare('SELECT id FROM users WHERE verification_token = ?').get(token);
-
-    if (!user) {
-        return res.status(400).json({ status: 'error', message: 'Token verifikasi tidak valid' });
-    }
-
-    db.prepare('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?').run(user.id);
-
-    res.json({ status: 'success', message: 'Email berhasil diverifikasi' });
 });
 
 // ==================== KIRIM ULANG EMAIL VERIFIKASI ====================
 router.post('/resend-verification', authMiddleware, async (req, res) => {
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    try {
+    const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
     if (user.email_verified) {
         return res.status(400).json({ status: 'error', message: 'Email kamu sudah terverifikasi' });
@@ -102,7 +108,7 @@ router.post('/resend-verification', authMiddleware, async (req, res) => {
     let token = user.verification_token;
     if (!token) {
         token = crypto.randomBytes(32).toString('hex');
-        db.prepare('UPDATE users SET verification_token = ? WHERE id = ?').run(token, user.id);
+        await db.prepare('UPDATE users SET verification_token = ? WHERE id = ?').run(token, user.id);
     }
 
     const appUrl = `${req.protocol}://${req.get('host')}`;
@@ -112,6 +118,10 @@ router.post('/resend-verification', authMiddleware, async (req, res) => {
         status: 'success',
         message: emailResult.sent ? 'Email verifikasi berhasil dikirim ulang' : 'SMTP belum dikonfigurasi, cek log server untuk tautan verifikasi'
     });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
+    }
 });
 
 // ==================== LOGIN DENGAN GOOGLE ====================
@@ -135,23 +145,23 @@ router.post('/google', async (req, res) => {
         });
         const payload = ticket.getPayload();
 
-        let user = db.prepare('SELECT * FROM users WHERE email = ?').get(payload.email);
+        let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(payload.email);
 
         if (!user) {
             // Belum punya akun -> buat otomatis
             const userUuid = uuidv4();
             const randomPassword = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
 
-            const result = db.prepare(`
+            const result = await db.prepare(`
                 INSERT INTO users (uuid, nama, email, password_hash, email_verified, google_id, avatar_url)
                 VALUES (?, ?, ?, ?, 1, ?, ?)
             `).run(userUuid, payload.name || payload.email.split('@')[0], payload.email, randomPassword, payload.sub, payload.picture || null);
 
-            db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(result.lastInsertRowid);
-            user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+            await db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(result.lastInsertRowid);
+            user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
         } else if (!user.google_id) {
             // Akun sudah ada (dari email/password) -> tautkan google_id
-            db.prepare('UPDATE users SET google_id = ?, email_verified = 1 WHERE id = ?').run(payload.sub, user.id);
+            await db.prepare('UPDATE users SET google_id = ?, email_verified = 1 WHERE id = ?').run(payload.sub, user.id);
         }
 
         const token = jwt.sign(
@@ -184,7 +194,7 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Email dan password wajib diisi' });
         }
 
-        const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+        const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
 
         if (!user) {
             return res.status(401).json({ status: 'error', message: 'Email atau password salah' });
@@ -223,7 +233,7 @@ router.post('/login', async (req, res) => {
 });
 
 // ==================== KIRIM UNDANGAN PASANGAN ====================
-router.post('/couple/invite', authMiddleware, (req, res) => {
+router.post('/couple/invite', authMiddleware, async (req, res) => {
     try {
         const { to_email } = req.body;
 
@@ -236,7 +246,7 @@ router.post('/couple/invite', authMiddleware, (req, res) => {
         }
 
         const invitationUuid = uuidv4();
-        db.prepare(`
+        await db.prepare(`
             INSERT INTO couple_invitations (uuid, from_user_id, to_email)
             VALUES (?, ?, ?)
         `).run(invitationUuid, req.user.id, to_email);
@@ -253,11 +263,11 @@ router.post('/couple/invite', authMiddleware, (req, res) => {
 });
 
 // ==================== TERIMA / TOLAK UNDANGAN ====================
-router.post('/couple/respond', authMiddleware, (req, res) => {
+router.post('/couple/respond', authMiddleware, async (req, res) => {
     try {
         const { invitation_uuid, action } = req.body; // action: 'accept' | 'reject'
 
-        const invitation = db.prepare(`
+        const invitation = await db.prepare(`
             SELECT * FROM couple_invitations WHERE uuid = ? AND status = 'pending'
         `).get(invitation_uuid);
 
@@ -270,19 +280,19 @@ router.post('/couple/respond', authMiddleware, (req, res) => {
         }
 
         if (action === 'reject') {
-            db.prepare('UPDATE couple_invitations SET status = ? WHERE uuid = ?').run('rejected', invitation_uuid);
+            await db.prepare('UPDATE couple_invitations SET status = ? WHERE uuid = ?').run('rejected', invitation_uuid);
             return res.json({ status: 'success', message: 'Undangan ditolak' });
         }
 
         // action === 'accept'
         const coupleUuid = uuidv4();
-        const coupleResult = db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(coupleUuid);
+        const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(coupleUuid);
         const coupleId = coupleResult.lastInsertRowid;
 
-        db.prepare('UPDATE users SET couple_id = ? WHERE id IN (?, ?)')
+        await db.prepare('UPDATE users SET couple_id = ? WHERE id IN (?, ?)')
             .run(coupleId, invitation.from_user_id, req.user.id);
 
-        db.prepare('UPDATE couple_invitations SET status = ? WHERE uuid = ?').run('accepted', invitation_uuid);
+        await db.prepare('UPDATE couple_invitations SET status = ? WHERE uuid = ?').run('accepted', invitation_uuid);
 
         res.json({
             status: 'success',
@@ -297,7 +307,7 @@ router.post('/couple/respond', authMiddleware, (req, res) => {
 });
 
 // ==================== PUTUSKAN HUBUNGAN PASANGAN ====================
-router.post('/couple/disconnect', authMiddleware, (req, res) => {
+router.post('/couple/disconnect', authMiddleware, async (req, res) => {
     try {
         const { confirm } = req.body;
 
@@ -312,7 +322,7 @@ router.post('/couple/disconnect', authMiddleware, (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Kamu belum terhubung dengan pasangan manapun' });
         }
 
-        db.prepare('UPDATE users SET couple_id = NULL WHERE couple_id = ?').run(req.user.couple_id);
+        await db.prepare('UPDATE users SET couple_id = NULL WHERE couple_id = ?').run(req.user.couple_id);
 
         res.json({ status: 'success', message: 'Hubungan pasangan berhasil diputuskan' });
 
@@ -323,24 +333,29 @@ router.post('/couple/disconnect', authMiddleware, (req, res) => {
 });
 
 // ==================== GET PROFIL SAAT INI ====================
-router.get('/me', authMiddleware, (req, res) => {
-    const user = db.prepare(`
-        SELECT id, uuid, nama, email, email_verified, avatar_url, couple_id, created_at
-        FROM users WHERE id = ?
-    `).get(req.user.id);
+router.get('/me', authMiddleware, async (req, res) => {
+    try {
+        const user = await db.prepare(`
+            SELECT id, uuid, nama, email, email_verified, avatar_url, couple_id, created_at
+            FROM users WHERE id = ?
+        `).get(req.user.id);
 
-    let pasangan = null;
-    if (user.couple_id) {
-        pasangan = db.prepare(`
-            SELECT id, nama, email, avatar_url FROM users
-            WHERE couple_id = ? AND id != ?
-        `).get(user.couple_id, user.id);
+        let pasangan = null;
+        if (user.couple_id) {
+            pasangan = await db.prepare(`
+                SELECT id, nama, email, avatar_url FROM users
+                WHERE couple_id = ? AND id != ?
+            `).get(user.couple_id, user.id);
+        }
+
+        res.json({
+            status: 'success',
+            data: { ...user, pasangan }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
     }
-
-    res.json({
-        status: 'success',
-        data: { ...user, pasangan }
-    });
 });
 
 module.exports = router;

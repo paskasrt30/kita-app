@@ -7,35 +7,40 @@ const router = express.Router();
 router.use(authMiddleware, requireCouple);
 
 // ==================== GET RIWAYAT TRANSFER ====================
-router.get('/', (req, res) => {
-    const { limit } = req.query;
+router.get('/', async (req, res) => {
+    try {
+        const { limit } = req.query;
 
-    let sql = `
-        SELECT t.*, 
-               fa.nama_rekening as nama_dari, 
-               ta.nama_rekening as nama_ke,
-               u.nama as nama_user
-        FROM transfers t
-        JOIN accounts fa ON t.from_account_id = fa.id
-        JOIN accounts ta ON t.to_account_id = ta.id
-        JOIN users u ON t.user_id = u.id
-        WHERE t.couple_id = ?
-        ORDER BY t.tanggal DESC, t.created_at DESC
-    `;
-    const params = [req.user.couple_id];
+        let sql = `
+            SELECT t.*,
+                   fa.nama_rekening as nama_dari,
+                   ta.nama_rekening as nama_ke,
+                   u.nama as nama_user
+            FROM transfers t
+            JOIN accounts fa ON t.from_account_id = fa.id
+            JOIN accounts ta ON t.to_account_id = ta.id
+            JOIN users u ON t.user_id = u.id
+            WHERE t.couple_id = ?
+            ORDER BY t.tanggal DESC, t.created_at DESC
+        `;
+        const params = [req.user.couple_id];
 
-    if (limit) {
-        sql += ' LIMIT ?';
-        params.push(Number(limit));
+        if (limit) {
+            sql += ' LIMIT ?';
+            params.push(Number(limit));
+        }
+
+        const data = await db.prepare(sql).all(...params);
+        res.json({ status: 'success', data });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
     }
-
-    const data = db.prepare(sql).all(...params);
-    res.json({ status: 'success', data });
 });
 
 // ==================== BUAT TRANSFER BARU ====================
-router.post('/', (req, res) => {
-    const transferTx = db.transaction((body, userId, coupleId) => {
+router.post('/', async (req, res) => {
+    const transferTx = db.transaction(async (body, userId, coupleId) => {
         const { from_account_id, to_account_id, nominal, tanggal, catatan } = body;
 
         if (!from_account_id || !to_account_id || !nominal || !tanggal) {
@@ -50,28 +55,28 @@ router.post('/', (req, res) => {
             throw { statusCode: 400, message: 'Nominal harus lebih besar dari 0' };
         }
 
-        const fromAccount = db.prepare('SELECT * FROM accounts WHERE id = ? AND couple_id = ?').get(from_account_id, coupleId);
-        const toAccount = db.prepare('SELECT * FROM accounts WHERE id = ? AND couple_id = ?').get(to_account_id, coupleId);
+        const fromAccount = await db.prepare('SELECT * FROM accounts WHERE id = ? AND couple_id = ?').get(from_account_id, coupleId);
+        const toAccount = await db.prepare('SELECT * FROM accounts WHERE id = ? AND couple_id = ?').get(to_account_id, coupleId);
 
         if (!fromAccount || !toAccount) {
             throw { statusCode: 404, message: 'Rekening asal atau tujuan tidak ditemukan' };
         }
 
         const transferUuid = uuidv4();
-        const result = db.prepare(`
+        const result = await db.prepare(`
             INSERT INTO transfers (uuid, couple_id, user_id, from_account_id, to_account_id, nominal, tanggal, catatan)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).run(transferUuid, coupleId, userId, from_account_id, to_account_id, nominal, tanggal, catatan || null);
 
-        db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini - ? WHERE id = ?').run(nominal, from_account_id);
-        db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini + ? WHERE id = ?').run(nominal, to_account_id);
+        await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini - ? WHERE id = ?').run(nominal, from_account_id);
+        await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini + ? WHERE id = ?').run(nominal, to_account_id);
 
         return result.lastInsertRowid;
     });
 
     try {
-        const newId = transferTx(req.body, req.user.id, req.user.couple_id);
-        const newTransfer = db.prepare('SELECT * FROM transfers WHERE id = ?').get(newId);
+        const newId = await transferTx(req.body, req.user.id, req.user.couple_id);
+        const newTransfer = await db.prepare('SELECT * FROM transfers WHERE id = ?').get(newId);
 
         res.status(201).json({ status: 'success', message: 'Transfer berhasil dilakukan', data: newTransfer });
 
@@ -83,25 +88,25 @@ router.post('/', (req, res) => {
 });
 
 // ==================== BATALKAN TRANSFER ====================
-router.delete('/:uuid', (req, res) => {
-    const reverseTx = db.transaction((uuid, coupleId) => {
-        const transfer = db.prepare('SELECT * FROM transfers WHERE uuid = ? AND couple_id = ?').get(uuid, coupleId);
+router.delete('/:uuid', async (req, res) => {
+    const reverseTx = db.transaction(async (uuid, coupleId) => {
+        const transfer = await db.prepare('SELECT * FROM transfers WHERE uuid = ? AND couple_id = ?').get(uuid, coupleId);
 
         if (!transfer) {
             throw { statusCode: 404, message: 'Transfer tidak ditemukan' };
         }
 
         // Kembalikan saldo seperti semula
-        db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini + ? WHERE id = ?')
+        await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini + ? WHERE id = ?')
             .run(transfer.nominal, transfer.from_account_id);
-        db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini - ? WHERE id = ?')
+        await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini - ? WHERE id = ?')
             .run(transfer.nominal, transfer.to_account_id);
 
-        db.prepare('DELETE FROM transfers WHERE uuid = ?').run(uuid);
+        await db.prepare('DELETE FROM transfers WHERE uuid = ?').run(uuid);
     });
 
     try {
-        reverseTx(req.params.uuid, req.user.couple_id);
+        await reverseTx(req.params.uuid, req.user.couple_id);
         res.json({ status: 'success', message: 'Transfer berhasil dibatalkan' });
     } catch (err) {
         const statusCode = err.statusCode || 500;
