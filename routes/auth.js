@@ -47,6 +47,11 @@ router.post('/register', async (req, res) => {
             VALUES (?, ?, ?, ?, ?)
         `).run(userUuid, nama, email, passwordHash, verificationToken);
 
+        // Buat rumah tangga (couple) solo supaya user bisa langsung pakai fitur
+        // sebelum menghubungkan pasangan (mis. saat klik "Lewati untuk sekarang")
+        const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(uuidv4());
+        await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(coupleResult.lastInsertRowid, result.lastInsertRowid);
+
         // Buat pengaturan default untuk user baru
         await db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(result.lastInsertRowid);
 
@@ -156,6 +161,11 @@ router.post('/google', async (req, res) => {
                 INSERT INTO users (uuid, nama, email, password_hash, email_verified, google_id, avatar_url)
                 VALUES (?, ?, ?, ?, 1, ?, ?)
             `).run(userUuid, payload.name || payload.email.split('@')[0], payload.email, randomPassword, payload.sub, payload.picture || null);
+
+            // Buat rumah tangga (couple) solo supaya user bisa langsung pakai fitur
+            // sebelum menghubungkan pasangan
+            const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(uuidv4());
+            await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(coupleResult.lastInsertRowid, result.lastInsertRowid);
 
             await db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(result.lastInsertRowid);
             user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
@@ -284,13 +294,12 @@ router.post('/couple/respond', authMiddleware, async (req, res) => {
             return res.json({ status: 'success', message: 'Undangan ditolak' });
         }
 
-        // action === 'accept'
-        const coupleUuid = uuidv4();
-        const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(coupleUuid);
-        const coupleId = coupleResult.lastInsertRowid;
+        // action === 'accept' -> gabung ke couple milik pengundang supaya data
+        // yang sudah dicatat pengundang (rekening, transaksi, dst.) tidak hilang
+        const inviter = await db.prepare('SELECT couple_id FROM users WHERE id = ?').get(invitation.from_user_id);
+        const coupleId = inviter.couple_id;
 
-        await db.prepare('UPDATE users SET couple_id = ? WHERE id IN (?, ?)')
-            .run(coupleId, invitation.from_user_id, req.user.id);
+        await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(coupleId, req.user.id);
 
         await db.prepare('UPDATE couple_invitations SET status = ? WHERE uuid = ?').run('accepted', invitation_uuid);
 
