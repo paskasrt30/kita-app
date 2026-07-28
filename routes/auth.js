@@ -174,8 +174,16 @@ router.post('/google', async (req, res) => {
             await db.prepare('UPDATE users SET google_id = ?, email_verified = 1 WHERE id = ?').run(payload.sub, user.id);
         }
 
+        // Akun lama (dibuat sebelum couple solo otomatis ada) belum punya couple_id -> buatkan sekarang
+        let coupleId = user.couple_id;
+        if (!coupleId) {
+            const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(uuidv4());
+            coupleId = coupleResult.lastInsertRowid;
+            await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(coupleId, user.id);
+        }
+
         const token = jwt.sign(
-            { id: user.id, email: user.email, couple_id: user.couple_id },
+            { id: user.id, email: user.email, couple_id: coupleId },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
@@ -185,7 +193,7 @@ router.post('/google', async (req, res) => {
             message: 'Login dengan Google berhasil',
             data: {
                 token,
-                user: { id: user.id, nama: user.nama, email: user.email, couple_id: user.couple_id, email_verified: true }
+                user: { id: user.id, nama: user.nama, email: user.email, couple_id: coupleId, email_verified: true }
             }
         });
 
@@ -215,8 +223,16 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ status: 'error', message: 'Email atau password salah' });
         }
 
+        // Akun lama (dibuat sebelum couple solo otomatis ada) belum punya couple_id -> buatkan sekarang
+        let coupleId = user.couple_id;
+        if (!coupleId) {
+            const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(uuidv4());
+            coupleId = coupleResult.lastInsertRowid;
+            await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(coupleId, user.id);
+        }
+
         const token = jwt.sign(
-            { id: user.id, email: user.email, couple_id: user.couple_id },
+            { id: user.id, email: user.email, couple_id: coupleId },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
@@ -230,7 +246,7 @@ router.post('/login', async (req, res) => {
                     id: user.id,
                     nama: user.nama,
                     email: user.email,
-                    couple_id: user.couple_id,
+                    couple_id: coupleId,
                     email_verified: !!user.email_verified
                 }
             }
