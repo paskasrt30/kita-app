@@ -49,4 +49,36 @@ async function kirimEmailVerifikasi(toEmail, nama, verificationToken, appUrl) {
     }
 }
 
-module.exports = { kirimEmailVerifikasi, SMTP_CONFIGURED };
+/**
+ * Kirim email undangan hubungkan pasangan. Sama seperti email verifikasi,
+ * diam-diam skip kalau SMTP belum dikonfigurasi (link/instruksi tetap di-log
+ * ke console supaya development tetap lancar).
+ */
+async function kirimEmailUndanganPasangan(toEmail, namaPengundang, appUrl) {
+    if (!SMTP_CONFIGURED) {
+        console.log(`[EMAIL SKIP] SMTP belum dikonfigurasi. Undangan pasangan dari ${namaPengundang} untuk ${toEmail} — buka ${appUrl} lalu terima undangan di halaman Pengaturan.`);
+        return { sent: false, reason: 'SMTP belum dikonfigurasi di .env' };
+    }
+
+    try {
+        await transporter.sendMail({
+            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            to: toEmail,
+            subject: `${namaPengundang} mengundangmu di Kita App`,
+            html: `
+                <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+                    <h2 style="color: #6C5CE7;">Undangan dari ${namaPengundang}</h2>
+                    <p>${namaPengundang} mengundang kamu untuk mengelola rumah tangga bersama di Kita App. Semua data keuangan, jadwal, dan catatan rumah tangga akan bisa diakses berdua.</p>
+                    <a href="${appUrl}" style="display:inline-block; background: linear-gradient(135deg, #6C5CE7, #FF7F6B); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">Buka Kita App</a>
+                    <p style="color: #6B6778; font-size: 13px; margin-top: 24px;">Daftar/masuk pakai email ini (${toEmail}), lalu buka menu Pengaturan &gt; Pasangan untuk menerima undangan.</p>
+                </div>
+            `
+        });
+        return { sent: true };
+    } catch (err) {
+        console.error('Gagal mengirim email undangan pasangan:', err.message);
+        return { sent: false, reason: err.message };
+    }
+}
+
+module.exports = { kirimEmailVerifikasi, kirimEmailUndanganPasangan, SMTP_CONFIGURED };

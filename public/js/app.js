@@ -250,12 +250,14 @@ document.getElementById('form-invite').addEventListener('submit', async (e) => {
 
     try {
         const to_email = document.getElementById('invite-email').value;
-        await apiCall('/auth/couple/invite', {
+        const res = await apiCall('/auth/couple/invite', {
             method: 'POST',
             body: JSON.stringify({ to_email })
         });
 
-        successEl.textContent = `Undangan berhasil dikirim ke ${to_email}`;
+        successEl.textContent = res.data.email_sent
+            ? `Undangan berhasil dikirim ke ${to_email}`
+            : `Undangan dibuat. Minta pasangan daftar/masuk pakai email ${to_email}, lalu buka Pengaturan untuk menerima undangan.`;
         successEl.classList.add('show');
 
     } catch (err) {
@@ -2558,7 +2560,11 @@ async function markAllNotificationsRead() {
 // ============================================
 async function loadSettings() {
     try {
-        const [settingsRes, meRes] = await Promise.all([apiCall('/settings'), apiCall('/auth/me')]);
+        const [settingsRes, meRes, invitationsRes] = await Promise.all([
+            apiCall('/settings'),
+            apiCall('/auth/me'),
+            apiCall('/auth/couple/invitations')
+        ]);
         const settings = settingsRes.data;
         const me = meRes.data;
 
@@ -2570,8 +2576,145 @@ async function loadSettings() {
         document.getElementById('settings-email').textContent = me.email;
         document.getElementById('settings-verified').textContent = me.email_verified ? '✓ Terverifikasi' : 'Belum diverifikasi';
 
+        renderCoupleSection(me, invitationsRes.data);
+
     } catch (err) {
         console.error('Gagal memuat pengaturan:', err.message);
+    }
+}
+
+function renderCoupleSection(me, invitations) {
+    const el = document.getElementById('settings-couple-section');
+
+    if (me.pasangan) {
+        el.innerHTML = `
+            <div class="card full-width">
+                <div class="flex-between">
+                    <span class="text-muted" style="font-size:13px;">Terhubung dengan</span>
+                    <span style="font-weight:600;">${me.pasangan.nama}</span>
+                </div>
+                <div class="flex-between mt-md">
+                    <span class="text-muted" style="font-size:13px;">Email</span>
+                    <span style="font-weight:600;">${me.pasangan.email}</span>
+                </div>
+            </div>
+            <button class="btn btn-secondary btn-block mt-md" style="color:var(--color-danger);" onclick="disconnectCouple()">Putuskan Hubungan Pasangan</button>
+        `;
+        return;
+    }
+
+    const { received, sent } = invitations;
+
+    let html = `
+        <div class="card full-width">
+            <p class="text-muted" style="font-size:13px;">Undang pasangan supaya data rumah tangga bisa diakses berdua.</p>
+            <form id="form-settings-invite" class="mt-md" onsubmit="sendCoupleInviteFromSettings(event)">
+                <div class="form-group">
+                    <input type="email" class="form-input" id="settings-invite-email" placeholder="email pasangan" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Kirim Undangan</button>
+            </form>
+        </div>
+    `;
+
+    if (received.length > 0) {
+        html += `<div class="section-header mt-md"><h2>Undangan Masuk</h2></div>`;
+        html += received.map(inv => `
+            <div class="card full-width mt-md">
+                <div class="list-item-title">${inv.nama_pengundang}</div>
+                <div class="text-muted" style="font-size:12px;">${inv.email_pengundang}</div>
+                <div class="flex gap-sm mt-md">
+                    <button class="btn btn-primary" style="flex:1;" onclick="respondToInvitation('${inv.uuid}', 'accept')">Terima</button>
+                    <button class="btn btn-secondary" style="flex:1;" onclick="respondToInvitation('${inv.uuid}', 'reject')">Tolak</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    if (sent.length > 0) {
+        html += `<div class="section-header mt-md"><h2>Undangan Terkirim</h2></div>`;
+        html += sent.map(inv => `
+            <div class="list-item">
+                <div class="list-item-body">
+                    <div class="list-item-title">${inv.to_email}</div>
+                    <div class="list-item-subtitle">Menunggu konfirmasi</div>
+                </div>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="cancelInvitation('${inv.uuid}')">✕</button>
+            </div>
+        `).join('');
+    }
+
+    el.innerHTML = html;
+}
+
+async function sendCoupleInviteFromSettings(event) {
+    event.preventDefault();
+    try {
+        const to_email = document.getElementById('settings-invite-email').value;
+        const res = await apiCall('/auth/couple/invite', {
+            method: 'POST',
+            body: JSON.stringify({ to_email })
+        });
+
+        alert(res.data.email_sent
+            ? `Undangan berhasil dikirim ke ${to_email}`
+            : `Undangan dibuat, tapi email belum aktif di server ini. Minta pasangan daftar/masuk pakai email ${to_email}, lalu buka Pengaturan untuk menerima undangan.`);
+
+        loadSettings();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+async function respondToInvitation(uuid, action) {
+    try {
+        const res = await apiCall('/auth/couple/respond', {
+            method: 'POST',
+            body: JSON.stringify({ invitation_uuid: uuid, action })
+        });
+
+        if (action === 'accept' && res.data && res.data.token) {
+            state.token = res.data.token;
+            localStorage.setItem('token', state.token);
+            alert('Berhasil terhubung dengan pasangan! Data rumah tangga kalian sekarang digabung.');
+            loadAccounts();
+            loadDashboard();
+        }
+
+        loadSettings();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+async function cancelInvitation(uuid) {
+    if (!confirm('Batalkan undangan ini?')) return;
+    try {
+        await apiCall(`/auth/couple/invitations/${uuid}/cancel`, { method: 'POST' });
+        loadSettings();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+async function disconnectCouple() {
+    if (!confirm('Putuskan hubungan dengan pasangan? Kalian berdua tidak akan bisa lagi saling akses data rumah tangga (data yang sudah tercatat tetap tersimpan).')) return;
+    try {
+        const res = await apiCall('/auth/couple/disconnect', {
+            method: 'POST',
+            body: JSON.stringify({ confirm: true })
+        });
+
+        if (res.data && res.data.token) {
+            state.token = res.data.token;
+            localStorage.setItem('token', state.token);
+        }
+
+        loadSettings();
+        loadAccounts();
+        loadDashboard();
+    } catch (err) {
+        alert(err.message);
     }
 }
 

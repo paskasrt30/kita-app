@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const { OAuth2Client } = require('google-auth-library');
 const db = require('../db/database');
 const { JWT_SECRET, authMiddleware } = require('../middleware/auth');
-const { kirimEmailVerifikasi } = require('./_email');
+const { kirimEmailVerifikasi, kirimEmailUndanganPasangan } = require('./_email');
 
 const router = express.Router();
 const googleClient = process.env.GOOGLE_CLIENT_ID ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID) : null;
@@ -277,11 +277,59 @@ router.post('/couple/invite', authMiddleware, async (req, res) => {
             VALUES (?, ?, ?)
         `).run(invitationUuid, req.user.id, to_email);
 
+        const pengundang = await db.prepare('SELECT nama FROM users WHERE id = ?').get(req.user.id);
+        const appUrl = `${req.protocol}://${req.get('host')}`;
+        const emailResult = await kirimEmailUndanganPasangan(to_email, pengundang.nama, appUrl);
+
         res.status(201).json({
             status: 'success',
-            message: `Undangan berhasil dikirim ke ${to_email}`
+            message: `Undangan berhasil dikirim ke ${to_email}`,
+            data: { email_sent: emailResult.sent }
         });
 
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
+    }
+});
+
+// ==================== LIST UNDANGAN (masuk & terkirim) ====================
+router.get('/couple/invitations', authMiddleware, async (req, res) => {
+    try {
+        const received = await db.prepare(`
+            SELECT ci.uuid, ci.created_at, u.nama as nama_pengundang, u.email as email_pengundang
+            FROM couple_invitations ci
+            JOIN users u ON ci.from_user_id = u.id
+            WHERE ci.to_email = ? AND ci.status = 'pending'
+            ORDER BY ci.created_at DESC
+        `).all(req.user.email);
+
+        const sent = await db.prepare(`
+            SELECT uuid, to_email, status, created_at FROM couple_invitations
+            WHERE from_user_id = ? AND status = 'pending'
+            ORDER BY created_at DESC
+        `).all(req.user.id);
+
+        res.json({ status: 'success', data: { received, sent } });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
+    }
+});
+
+// ==================== BATALKAN UNDANGAN YANG SUDAH DIKIRIM ====================
+router.post('/couple/invitations/:uuid/cancel', authMiddleware, async (req, res) => {
+    try {
+        const invitation = await db.prepare(`
+            SELECT * FROM couple_invitations WHERE uuid = ? AND from_user_id = ? AND status = 'pending'
+        `).get(req.params.uuid, req.user.id);
+
+        if (!invitation) {
+            return res.status(404).json({ status: 'error', message: 'Undangan tidak ditemukan atau sudah diproses' });
+        }
+
+        await db.prepare("UPDATE couple_invitations SET status = 'rejected' WHERE uuid = ?").run(req.params.uuid);
+        res.json({ status: 'success', message: 'Undangan dibatalkan' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
@@ -319,10 +367,19 @@ router.post('/couple/respond', authMiddleware, async (req, res) => {
 
         await db.prepare('UPDATE couple_invitations SET status = ? WHERE uuid = ?').run('accepted', invitation_uuid);
 
+        // couple_id ikut dibekukan di dalam JWT saat login, jadi token yang sedang
+        // dipakai user ini masih bawa couple_id lama -> harus diterbitkan ulang di sini,
+        // kalau tidak semua request berikutnya (dashboard, rekening, dst.) masih pakai couple_id lama.
+        const newToken = jwt.sign(
+            { id: req.user.id, email: req.user.email, couple_id: coupleId },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
         res.json({
             status: 'success',
             message: 'Berhasil terhubung dengan pasangan!',
-            data: { couple_id: coupleId }
+            data: { couple_id: coupleId, token: newToken }
         });
 
     } catch (err) {
@@ -349,7 +406,23 @@ router.post('/couple/disconnect', authMiddleware, async (req, res) => {
 
         await db.prepare('UPDATE users SET couple_id = NULL WHERE couple_id = ?').run(req.user.couple_id);
 
-        res.json({ status: 'success', message: 'Hubungan pasangan berhasil diputuskan' });
+        // Buatkan couple solo baru buat yang barusan disconnect, supaya langsung
+        // bisa lanjut pakai app tanpa perlu login ulang dulu (samain kayak alur login).
+        const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(uuidv4());
+        const newCoupleId = coupleResult.lastInsertRowid;
+        await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(newCoupleId, req.user.id);
+
+        const newToken = jwt.sign(
+            { id: req.user.id, email: req.user.email, couple_id: newCoupleId },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.json({
+            status: 'success',
+            message: 'Hubungan pasangan berhasil diputuskan',
+            data: { couple_id: newCoupleId, token: newToken }
+        });
 
     } catch (err) {
         console.error(err);
