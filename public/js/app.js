@@ -145,6 +145,31 @@ function closeSheetOnOverlay(event, sheetId) {
     if (event.target.id === sheetId) closeSheet(sheetId);
 }
 
+// Sheet detail generik: dipanggil saat item daftar di-tap, tampilkan ringkasan
+// dulu baru user pilih Edit atau Hapus dari situ (bukan tombol langsung di daftar).
+function openDetailSheet(title, rows, onEdit, onDelete) {
+    document.getElementById('detail-sheet-title').textContent = title;
+    document.getElementById('detail-sheet-body').innerHTML = rows
+        .filter(r => r[1] !== null && r[1] !== undefined && r[1] !== '')
+        .map(r => `
+            <div class="flex-between mt-md" style="font-size:13px;">
+                <span class="text-muted">${r[0]}</span>
+                <span style="font-weight:600; text-align:right;">${r[1]}</span>
+            </div>
+        `).join('');
+
+    const editBtn = document.getElementById('detail-sheet-edit-btn');
+    const deleteBtn = document.getElementById('detail-sheet-delete-btn');
+
+    editBtn.style.display = onEdit ? '' : 'none';
+    editBtn.onclick = () => { closeSheet('sheet-detail'); if (onEdit) onEdit(); };
+
+    deleteBtn.style.display = onDelete ? '' : 'none';
+    deleteBtn.onclick = () => { closeSheet('sheet-detail'); if (onDelete) onDelete(); };
+
+    openSheet('sheet-detail');
+}
+
 // ============================================
 // AUTH: LOGIN
 // ============================================
@@ -366,21 +391,38 @@ async function loadAccounts() {
         }
 
         listEl.innerHTML = state.accounts.map(a => `
-            <div class="list-item">
+            <div class="list-item" onclick="showAccountDetail('${a.uuid}')">
                 <div class="list-item-icon" style="background:${a.warna}22;">${TIPE_ICON[a.tipe] || '💼'}</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${a.nama_rekening}</div>
                     <div class="list-item-subtitle">${a.nama_bank || a.tipe}</div>
                 </div>
                 <div class="list-item-value">${formatRupiah(a.saldo_saat_ini)}</div>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editAccount('${a.uuid}')">✏️</button>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteAccount('${a.uuid}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat rekening:', err.message);
     }
+}
+
+function showAccountDetail(uuid) {
+    const account = state.accounts.find(a => a.uuid === uuid);
+    if (!account) return;
+
+    const rows = [
+        ['Tipe', TIPE_ICON[account.tipe] ? account.tipe : account.tipe],
+        ['Saldo Saat Ini', formatRupiah(account.saldo_saat_ini)],
+        ['Bank', account.nama_bank],
+        ['Nomor Rekening', account.nomor_rekening]
+    ];
+
+    openDetailSheet(
+        account.nama_rekening,
+        rows,
+        () => editAccount(uuid),
+        () => deleteAccount(uuid)
+    );
 }
 
 function editAccount(uuid) {
@@ -467,26 +509,56 @@ async function loadTransactions() {
             return;
         }
 
-        listEl.innerHTML = items.map(item => `
-            <div class="list-item">
-                <div class="list-item-icon" style="background:${activeTransactionTab === 'expense' ? '#FEEBEF' : '#E6FAF5'};">
-                    ${activeTransactionTab === 'expense' ? '💸' : '💰'}
+        let html = '';
+        let lastTanggal = null;
+        items.forEach(item => {
+            if (item.tanggal !== lastTanggal) {
+                html += `<div class="section-header mt-md"><h2>${formatTanggal(item.tanggal)}</h2></div>`;
+                lastTanggal = item.tanggal;
+            }
+            const namaTransaksi = item.catatan || KATEGORI_LABELS[item.kategori] || SUMBER_LABELS[item.sumber] || item.kategori || item.sumber || 'Lainnya';
+            const kategoriLabel = KATEGORI_LABELS[item.kategori] || SUMBER_LABELS[item.sumber] || item.kategori || item.sumber || '';
+            html += `
+                <div class="list-item" onclick="showTransactionDetail('${item.uuid}', '${activeTransactionTab}')">
+                    <div class="list-item-icon" style="background:${activeTransactionTab === 'expense' ? '#FEEBEF' : '#E6FAF5'};">
+                        ${activeTransactionTab === 'expense' ? '💸' : '💰'}
+                    </div>
+                    <div class="list-item-body">
+                        <div class="list-item-title">${namaTransaksi}</div>
+                        <div class="list-item-subtitle">${kategoriLabel}</div>
+                    </div>
+                    <div class="list-item-value ${activeTransactionTab === 'expense' ? 'expense' : 'income'}">
+                        ${activeTransactionTab === 'expense' ? '-' : '+'}${formatRupiah(item.nominal)}
+                    </div>
                 </div>
-                <div class="list-item-body">
-                    <div class="list-item-title">${KATEGORI_LABELS[item.kategori] || SUMBER_LABELS[item.sumber] || item.kategori || item.sumber || 'Lainnya'}</div>
-                    <div class="list-item-subtitle">${item.nama_rekening ? item.nama_rekening + ' · ' : ''}${formatTanggal(item.tanggal)}</div>
-                </div>
-                <div class="list-item-value ${activeTransactionTab === 'expense' ? 'expense' : 'income'}">
-                    ${activeTransactionTab === 'expense' ? '-' : '+'}${formatRupiah(item.nominal)}
-                </div>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editTransaction('${item.uuid}', '${activeTransactionTab}')">✏️</button>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteTransaction('${item.uuid}', '${activeTransactionTab}')">✕</button>
-            </div>
-        `).join('');
+            `;
+        });
+        listEl.innerHTML = html;
 
     } catch (err) {
         console.error('Gagal memuat transaksi:', err.message);
     }
+}
+
+function showTransactionDetail(uuid, tipe) {
+    const item = currentTransactionItems.find(i => i.uuid === uuid);
+    if (!item) return;
+
+    const kategoriLabel = KATEGORI_LABELS[item.kategori] || SUMBER_LABELS[item.sumber] || item.kategori || item.sumber || '-';
+    const rows = [
+        ['Keterangan', item.catatan || '-'],
+        [tipe === 'expense' ? 'Kategori' : 'Sumber', kategoriLabel],
+        ['Nominal', formatRupiah(item.nominal)],
+        ['Tanggal', formatTanggal(item.tanggal)],
+        ['Rekening', item.nama_rekening || null]
+    ];
+
+    openDetailSheet(
+        tipe === 'expense' ? 'Detail Pengeluaran' : 'Detail Pemasukan',
+        rows,
+        () => editTransaction(uuid, tipe),
+        () => deleteTransaction(uuid, tipe)
+    );
 }
 
 function editTransaction(uuid, tipe) {
@@ -506,6 +578,7 @@ function editTransaction(uuid, tipe) {
         document.getElementById('income-nominal').value = item.nominal;
         document.getElementById('income-sumber').value = item.sumber;
         document.getElementById('income-tanggal').value = item.tanggal;
+        document.getElementById('income-catatan').value = item.catatan || '';
         document.getElementById('income-sheet-title').textContent = 'Edit Pemasukan';
         openSheet('sheet-add-income');
     }
@@ -559,7 +632,8 @@ document.getElementById('form-add-income').addEventListener('submit', async (e) 
         const payload = {
             nominal: Number(document.getElementById('income-nominal').value),
             sumber: document.getElementById('income-sumber').value,
-            tanggal: document.getElementById('income-tanggal').value
+            tanggal: document.getElementById('income-tanggal').value,
+            catatan: document.getElementById('income-catatan').value
         };
 
         if (editUuid) {
@@ -582,10 +656,13 @@ document.getElementById('form-add-income').addEventListener('submit', async (e) 
 // ============================================
 // ANGGARAN
 // ============================================
+let currentBudgets = [];
+
 async function loadBudgets() {
     try {
         const res = await apiCall('/budgets');
         const budgets = res.data;
+        currentBudgets = budgets;
 
         const listEl = document.getElementById('budgets-list');
         if (budgets.length === 0) {
@@ -596,14 +673,10 @@ async function loadBudgets() {
         listEl.innerHTML = budgets.map(b => {
             const barClass = b.status === 'melebihi' ? 'danger' : b.status === 'hampir_habis' ? 'warning' : '';
             return `
-                <div class="card full-width mt-md">
+                <div class="card full-width mt-md" onclick="showBudgetDetail(${b.id})">
                     <div class="flex-between">
                         <span class="list-item-title">${KATEGORI_LABELS[b.kategori] || b.kategori}</span>
-                        <div class="flex gap-sm">
-                            <span class="text-muted" style="font-size:12px;">${b.persentase}%</span>
-                            <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="editBudget(${b.id}, '${b.kategori}', ${b.target_nominal})">✏️</button>
-                            <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="deleteBudget(${b.id})">✕</button>
-                        </div>
+                        <span class="text-muted" style="font-size:12px;">${b.persentase}%</span>
                     </div>
                     <div class="progress-track"><div class="progress-fill ${barClass}" style="width:${Math.min(b.persentase, 100)}%"></div></div>
                     <div class="flex-between mt-md" style="font-size:12px;">
@@ -619,6 +692,25 @@ async function loadBudgets() {
     } catch (err) {
         console.error('Gagal memuat anggaran:', err.message);
     }
+}
+
+function showBudgetDetail(id) {
+    const b = currentBudgets.find(x => x.id === id);
+    if (!b) return;
+
+    const rows = [
+        ['Target / Bulan', formatRupiah(b.target_nominal)],
+        ['Realisasi', formatRupiah(b.realisasi)],
+        [b.sisa < 0 ? 'Lebih' : 'Sisa', formatRupiah(Math.abs(b.sisa))],
+        ['Persentase', `${b.persentase}%`]
+    ];
+
+    openDetailSheet(
+        KATEGORI_LABELS[b.kategori] || b.kategori,
+        rows,
+        () => editBudget(b.id, b.kategori, b.target_nominal),
+        () => deleteBudget(b.id)
+    );
 }
 
 function editBudget(id, kategori, targetNominal) {
@@ -683,21 +775,17 @@ async function loadSavings() {
         listEl.innerHTML = goals.map(g => {
             const barClass = g.status === 'completed' ? '' : '';
             return `
-                <div class="card full-width mt-md">
+                <div class="card full-width mt-md" onclick="showSavingsDetail('${g.uuid}')">
                     <div class="flex-between">
                         <span class="list-item-title">${g.status === 'completed' ? '🎉 ' : ''}${g.nama_target}</span>
-                        <div class="flex gap-sm">
-                            <span class="text-muted" style="font-size:12px;">${g.progress_persen}%</span>
-                            <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="editSavings('${g.uuid}')">✏️</button>
-                            <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="deleteSavings('${g.uuid}')">✕</button>
-                        </div>
+                        <span class="text-muted" style="font-size:12px;">${g.progress_persen}%</span>
                     </div>
                     <div class="progress-track"><div class="progress-fill" style="width:${Math.min(g.progress_persen, 100)}%"></div></div>
                     <div class="flex-between mt-md" style="font-size:12px;">
                         <span class="text-muted">${formatRupiah(g.nominal_terkumpul)} dari ${formatRupiah(g.target_nominal)}</span>
                         ${g.target_tanggal ? `<span class="text-muted">Target: ${formatTanggal(g.target_tanggal)}</span>` : ''}
                     </div>
-                    ${g.status !== 'completed' ? `<button class="btn btn-secondary btn-block mt-md" onclick="openDepositSheet('${g.uuid}')">+ Setor Tabungan</button>` : ''}
+                    ${g.status !== 'completed' ? `<button class="btn btn-secondary btn-block mt-md" onclick="event.stopPropagation(); openDepositSheet('${g.uuid}')">+ Setor Tabungan</button>` : ''}
                 </div>
             `;
         }).join('');
@@ -705,6 +793,25 @@ async function loadSavings() {
     } catch (err) {
         console.error('Gagal memuat tabungan:', err.message);
     }
+}
+
+function showSavingsDetail(uuid) {
+    const goal = currentSavingsGoals.find(g => g.uuid === uuid);
+    if (!goal) return;
+
+    const rows = [
+        ['Target', formatRupiah(goal.target_nominal)],
+        ['Terkumpul', formatRupiah(goal.nominal_terkumpul)],
+        ['Progress', `${goal.progress_persen}%`],
+        ['Target Tanggal', goal.target_tanggal ? formatTanggal(goal.target_tanggal) : null]
+    ];
+
+    openDetailSheet(
+        goal.nama_target,
+        rows,
+        () => editSavings(uuid),
+        () => deleteSavings(uuid)
+    );
 }
 
 function editSavings(uuid) {
@@ -819,8 +926,8 @@ async function loadTodos() {
         }
 
         listEl.innerHTML = todos.map(t => `
-            <div class="checklist-item ${t.status === 'selesai' ? 'done' : ''}">
-                <div class="checklist-checkbox ${t.status === 'selesai' ? 'checked' : ''}" onclick="toggleTodoStatus('${t.uuid}', '${t.status}')">
+            <div class="checklist-item ${t.status === 'selesai' ? 'done' : ''}" onclick="showTodoDetail('${t.uuid}')">
+                <div class="checklist-checkbox ${t.status === 'selesai' ? 'checked' : ''}" onclick="event.stopPropagation(); toggleTodoStatus('${t.uuid}', '${t.status}')">
                     ${t.status === 'selesai' ? '✓' : ''}
                 </div>
                 <div class="list-item-body">
@@ -828,14 +935,32 @@ async function loadTodos() {
                     <div class="list-item-subtitle">${t.nama_assigned || 'Belum ditugaskan'}${t.deadline ? ' · ' + formatTanggal(t.deadline) : ''}</div>
                 </div>
                 <span class="priority-badge ${t.prioritas}">${t.prioritas}</span>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editTodo('${t.uuid}')">✏️</button>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteTodo('${t.uuid}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat tugas:', err.message);
     }
+}
+
+function showTodoDetail(uuid) {
+    const todo = currentTodos.find(t => t.uuid === uuid);
+    if (!todo) return;
+
+    const rows = [
+        ['Status', todo.status === 'selesai' ? 'Selesai' : 'Belum selesai'],
+        ['Prioritas', todo.prioritas],
+        ['Ditugaskan ke', todo.nama_assigned],
+        ['Deadline', todo.deadline ? formatTanggal(todo.deadline) : null],
+        ['Deskripsi', todo.deskripsi]
+    ];
+
+    openDetailSheet(
+        todo.judul,
+        rows,
+        () => editTodo(uuid),
+        () => deleteTodo(uuid)
+    );
 }
 
 async function deleteTodo(uuid) {
@@ -943,20 +1068,37 @@ async function loadCalendar() {
         }
 
         listEl.innerHTML = events.map(ev => `
-            <div class="list-item">
+            <div class="list-item" onclick="showCalendarDetail('${ev.uuid}')">
                 <div class="list-item-icon" style="background:#F3EFF6;">${TIPE_ICON_CAL[ev.tipe] || '📌'}</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${ev.judul}</div>
                     <div class="list-item-subtitle">${new Date(ev.tanggal_mulai).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${ev.lokasi ? ' · ' + ev.lokasi : ''}</div>
                 </div>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editCalendarEvent('${ev.uuid}')">✏️</button>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteCalendarEvent('${ev.uuid}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat kalender:', err.message);
     }
+}
+
+function showCalendarDetail(uuid) {
+    const ev = currentCalendarEvents.find(e => e.uuid === uuid);
+    if (!ev) return;
+
+    const rows = [
+        ['Tipe', TIPE_ICON_CAL[ev.tipe] ? ev.tipe : ev.tipe],
+        ['Waktu', new Date(ev.tanggal_mulai).toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })],
+        ['Lokasi', ev.lokasi],
+        ['Catatan', ev.catatan]
+    ];
+
+    openDetailSheet(
+        ev.judul,
+        rows,
+        () => editCalendarEvent(uuid),
+        () => deleteCalendarEvent(uuid)
+    );
 }
 
 function editCalendarEvent(uuid) {
@@ -1045,22 +1187,38 @@ async function loadShopping() {
         }
 
         itemsEl.innerHTML = list.items.map(item => `
-            <div class="checklist-item ${item.checked ? 'done' : ''}">
-                <div class="checklist-checkbox ${item.checked ? 'checked' : ''}" onclick="toggleShoppingItem(${item.id})">
+            <div class="checklist-item ${item.checked ? 'done' : ''}" onclick="showShoppingItemDetail(${item.id})">
+                <div class="checklist-checkbox ${item.checked ? 'checked' : ''}" onclick="event.stopPropagation(); toggleShoppingItem(${item.id})">
                     ${item.checked ? '✓' : ''}
                 </div>
                 <div class="list-item-body">
                     <div class="list-item-title">${item.nama_barang}${item.jumlah ? ' (' + item.jumlah + ')' : ''}</div>
                 </div>
                 ${item.estimasi_harga ? `<div class="list-item-value">${formatRupiah(item.estimasi_harga)}</div>` : ''}
-                <button class="btn-icon" style="width:32px;height:32px;font-size:14px;" onclick="editShoppingItem(${item.id})">✏️</button>
-                <button class="btn-icon" style="width:32px;height:32px;font-size:14px;" onclick="deleteShoppingItem(${item.id})">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat shopping list:', err.message);
     }
+}
+
+function showShoppingItemDetail(itemId) {
+    const item = currentShoppingItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    const rows = [
+        ['Jumlah', item.jumlah],
+        ['Estimasi Harga', item.estimasi_harga ? formatRupiah(item.estimasi_harga) : null],
+        ['Status', item.checked ? 'Sudah dibeli' : 'Belum dibeli']
+    ];
+
+    openDetailSheet(
+        item.nama_barang,
+        rows,
+        () => editShoppingItem(itemId),
+        () => deleteShoppingItem(itemId)
+    );
 }
 
 function editShoppingItem(itemId) {
@@ -1146,7 +1304,7 @@ async function loadBills() {
         }
 
         listEl.innerHTML = bills.map(b => `
-            <div class="list-item">
+            <div class="list-item" onclick="showBillDetail(${b.id})">
                 <div class="list-item-icon" style="background:${b.status_bulan_ini === 'sudah_bayar' ? '#E6FAF5' : '#FFF3E0'};">
                     ${b.status_bulan_ini === 'sudah_bayar' ? '✅' : '🧾'}
                 </div>
@@ -1155,17 +1313,34 @@ async function loadBills() {
                     <div class="list-item-subtitle">Jatuh tempo tanggal ${b.tanggal_jatuh_tempo} · ${b.status_bulan_ini === 'sudah_bayar' ? 'Sudah dibayar' : 'Belum dibayar'}</div>
                 </div>
                 ${b.status_bulan_ini !== 'sudah_bayar'
-                    ? `<button class="btn btn-secondary" style="width:auto;padding:8px 14px;font-size:12px;" onclick="openPayBillSheet(${b.id}, ${b.nominal || 0})">Bayar</button>`
+                    ? `<button class="btn btn-secondary" style="width:auto;padding:8px 14px;font-size:12px;" onclick="event.stopPropagation(); openPayBillSheet(${b.id}, ${b.nominal || 0})">Bayar</button>`
                     : `<div class="list-item-value income">${formatRupiah(b.nominal_dibayar)}</div>`
                 }
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editBill(${b.id})">✏️</button>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteBill(${b.id})">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat tagihan:', err.message);
     }
+}
+
+function showBillDetail(billId) {
+    const bill = currentBills.find(b => b.id === billId);
+    if (!bill) return;
+
+    const rows = [
+        ['Nominal', bill.nominal ? formatRupiah(bill.nominal) : 'Berubah tiap bulan'],
+        ['Jatuh Tempo', `Tanggal ${bill.tanggal_jatuh_tempo}`],
+        ['Pengingat', `${bill.pengingat_hari_sebelum} hari sebelumnya`],
+        ['Status Bulan Ini', bill.status_bulan_ini === 'sudah_bayar' ? 'Sudah dibayar' : 'Belum dibayar']
+    ];
+
+    openDetailSheet(
+        bill.nama_tagihan,
+        rows,
+        () => editBill(billId),
+        () => deleteBill(billId)
+    );
 }
 
 function editBill(billId) {
@@ -1283,14 +1458,10 @@ async function loadDebts() {
         }
 
         listEl.innerHTML = debts.map(d => `
-            <div class="card full-width mt-md">
+            <div class="card full-width mt-md" onclick="showDebtDetail('${d.uuid}')">
                 <div class="flex-between">
                     <span class="list-item-title">${d.tipe === 'hutang' ? '📤' : '📥'} ${d.nama_pihak}</span>
-                    <div class="flex gap-sm">
-                        <span class="priority-badge ${d.status === 'lunas' ? 'rendah' : 'tinggi'}">${d.status === 'lunas' ? 'Lunas' : 'Berjalan'}</span>
-                        <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="editDebt('${d.uuid}')">✏️</button>
-                        <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="deleteDebt('${d.uuid}')">✕</button>
-                    </div>
+                    <span class="priority-badge ${d.status === 'lunas' ? 'rendah' : 'tinggi'}">${d.status === 'lunas' ? 'Lunas' : 'Berjalan'}</span>
                 </div>
                 <div class="progress-track"><div class="progress-fill" style="width:${Math.min(d.persentase_terbayar, 100)}%"></div></div>
                 <div class="flex-between mt-md" style="font-size:12px;">
@@ -1298,13 +1469,35 @@ async function loadDebts() {
                     <span style="font-weight:600;">Sisa ${formatRupiah(d.sisa)}</span>
                 </div>
                 ${d.jatuh_tempo ? `<div class="text-muted mt-md" style="font-size:12px;">Jatuh tempo: ${formatTanggal(d.jatuh_tempo)}</div>` : ''}
-                ${d.status !== 'lunas' ? `<button class="btn btn-secondary btn-block mt-md" onclick="openPayDebtSheet('${d.uuid}', '${d.tipe}', '${d.nama_pihak.replace(/'/g, "\\'")}')">+ Catat Pembayaran</button>` : ''}
+                ${d.status !== 'lunas' ? `<button class="btn btn-secondary btn-block mt-md" onclick="event.stopPropagation(); openPayDebtSheet('${d.uuid}', '${d.tipe}', '${d.nama_pihak.replace(/'/g, "\\'")}')">+ Catat Pembayaran</button>` : ''}
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat hutang/piutang:', err.message);
     }
+}
+
+function showDebtDetail(uuid) {
+    const debt = currentDebts.find(d => d.uuid === uuid);
+    if (!debt) return;
+
+    const rows = [
+        ['Tipe', debt.tipe === 'hutang' ? 'Hutang' : 'Piutang'],
+        ['Total', formatRupiah(debt.nominal_total)],
+        ['Terbayar', formatRupiah(debt.nominal_terbayar)],
+        ['Sisa', formatRupiah(debt.sisa)],
+        ['Tanggal Mulai', formatTanggal(debt.tanggal_mulai)],
+        ['Jatuh Tempo', debt.jatuh_tempo ? formatTanggal(debt.jatuh_tempo) : null],
+        ['Catatan', debt.catatan]
+    ];
+
+    openDetailSheet(
+        debt.nama_pihak,
+        rows,
+        () => editDebt(uuid),
+        () => deleteDebt(uuid)
+    );
 }
 
 function editDebt(uuid) {
@@ -1419,10 +1612,13 @@ function openTransferSheet() {
     openSheet('sheet-transfer');
 }
 
+let currentTransfers = [];
+
 async function loadTransfers() {
     try {
         const res = await apiCall('/transfers');
         const transfers = res.data;
+        currentTransfers = transfers;
 
         const listEl = document.getElementById('transfers-list');
         if (transfers.length === 0) {
@@ -1431,20 +1627,40 @@ async function loadTransfers() {
         }
 
         listEl.innerHTML = transfers.map(t => `
-            <div class="list-item">
+            <div class="list-item" onclick="showTransferDetail('${t.uuid}')">
                 <div class="list-item-icon" style="background:#F3EFF6;">⇄</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${t.nama_dari} → ${t.nama_ke}</div>
                     <div class="list-item-subtitle">${t.nama_user} · ${formatTanggal(t.tanggal)}</div>
                 </div>
                 <div class="list-item-value">${formatRupiah(t.nominal)}</div>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteTransfer('${t.uuid}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat transfer:', err.message);
     }
+}
+
+function showTransferDetail(uuid) {
+    const t = currentTransfers.find(x => x.uuid === uuid);
+    if (!t) return;
+
+    const rows = [
+        ['Dari', t.nama_dari],
+        ['Ke', t.nama_ke],
+        ['Nominal', formatRupiah(t.nominal)],
+        ['Tanggal', formatTanggal(t.tanggal)],
+        ['Oleh', t.nama_user],
+        ['Catatan', t.catatan]
+    ];
+
+    openDetailSheet(
+        `${t.nama_dari} → ${t.nama_ke}`,
+        rows,
+        null,
+        () => deleteTransfer(uuid)
+    );
 }
 
 async function deleteTransfer(uuid) {
@@ -1629,17 +1845,15 @@ async function loadStock() {
         }
 
         listEl.innerHTML = items.map(i => `
-            <div class="list-item">
+            <div class="list-item" onclick="showStockDetail('${i.uuid}')">
                 <div class="list-item-icon" style="background:${i.is_low ? '#FEEBEF' : '#F3EFF6'};">${i.is_low ? '⚠️' : '📦'}</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${i.nama_barang}</div>
                     <div class="list-item-subtitle">${i.jumlah_saat_ini} ${i.satuan || ''} ${i.is_low ? '· Stok menipis!' : ''}</div>
                 </div>
                 <div class="flex gap-sm">
-                    <button class="btn-icon" style="width:32px;height:32px;font-size:16px;" onclick="adjustStock('${i.uuid}', -1)">−</button>
-                    <button class="btn-icon" style="width:32px;height:32px;font-size:16px;" onclick="adjustStock('${i.uuid}', 1)">＋</button>
-                    <button class="btn-icon" style="width:32px;height:32px;font-size:14px;" onclick="editStock('${i.uuid}')">✏️</button>
-                    <button class="btn-icon" style="width:32px;height:32px;font-size:14px;" onclick="deleteStock('${i.uuid}')">✕</button>
+                    <button class="btn-icon" style="width:32px;height:32px;font-size:16px;" onclick="event.stopPropagation(); adjustStock('${i.uuid}', -1)">−</button>
+                    <button class="btn-icon" style="width:32px;height:32px;font-size:16px;" onclick="event.stopPropagation(); adjustStock('${i.uuid}', 1)">＋</button>
                 </div>
             </div>
         `).join('');
@@ -1647,6 +1861,24 @@ async function loadStock() {
     } catch (err) {
         console.error('Gagal memuat stok:', err.message);
     }
+}
+
+function showStockDetail(uuid) {
+    const item = currentStockItems.find(i => i.uuid === uuid);
+    if (!item) return;
+
+    const rows = [
+        ['Jumlah', `${item.jumlah_saat_ini} ${item.satuan || ''}`],
+        ['Ambang Batas Minimum', `${item.ambang_batas_minimum} ${item.satuan || ''}`],
+        ['Status', item.is_low ? 'Stok menipis' : 'Cukup']
+    ];
+
+    openDetailSheet(
+        item.nama_barang,
+        rows,
+        () => editStock(uuid),
+        () => deleteStock(uuid)
+    );
 }
 
 async function adjustStock(uuid, delta) {
@@ -1725,21 +1957,38 @@ async function loadInventory() {
         }
 
         listEl.innerHTML = items.map(i => `
-            <div class="list-item">
+            <div class="list-item" onclick="showInventoryDetail('${i.uuid}')">
                 <div class="list-item-icon" style="background:#F3EFF6;">🛋️</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${i.nama_barang}</div>
                     <div class="list-item-subtitle">${i.lokasi || '-'} ${i.harga_beli ? '· ' + formatRupiah(i.harga_beli) : ''}</div>
                 </div>
                 ${i.garansi_sampai ? `<span class="priority-badge ${i.garansi_masih_berlaku ? 'rendah' : 'tinggi'}">${i.garansi_masih_berlaku ? 'Garansi aktif' : 'Garansi habis'}</span>` : ''}
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editInventory('${i.uuid}')">✏️</button>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteInventory('${i.uuid}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat inventaris:', err.message);
     }
+}
+
+function showInventoryDetail(uuid) {
+    const item = currentInventoryItems.find(i => i.uuid === uuid);
+    if (!item) return;
+
+    const rows = [
+        ['Lokasi', item.lokasi],
+        ['Harga Beli', item.harga_beli ? formatRupiah(item.harga_beli) : null],
+        ['Tanggal Beli', item.tanggal_beli ? formatTanggal(item.tanggal_beli) : null],
+        ['Garansi Sampai', item.garansi_sampai ? formatTanggal(item.garansi_sampai) : null]
+    ];
+
+    openDetailSheet(
+        item.nama_barang,
+        rows,
+        () => editInventory(uuid),
+        () => deleteInventory(uuid)
+    );
 }
 
 function editInventory(uuid) {
@@ -1813,21 +2062,38 @@ async function loadServices() {
         }
 
         listEl.innerHTML = items.map(i => `
-            <div class="list-item">
+            <div class="list-item" onclick="showServiceDetail('${i.uuid}')">
                 <div class="list-item-icon" style="background:${i.sudah_lewat ? '#FEEBEF' : '#F3EFF6'};">🔧</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${i.nama_item}${i.jenis_servis ? ' — ' + i.jenis_servis : ''}</div>
                     <div class="list-item-subtitle">${i.tanggal_servis_berikutnya ? 'Berikutnya: ' + formatTanggal(i.tanggal_servis_berikutnya) : 'Belum dijadwalkan'}</div>
                 </div>
-                <button class="btn btn-secondary" style="width:auto;padding:8px 12px;font-size:12px;" onclick="markServiceDone('${i.uuid}')">Selesai</button>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editService('${i.uuid}')">✏️</button>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteService('${i.uuid}')">✕</button>
+                <button class="btn btn-secondary" style="width:auto;padding:8px 12px;font-size:12px;" onclick="event.stopPropagation(); markServiceDone('${i.uuid}')">Selesai</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat jadwal servis:', err.message);
     }
+}
+
+function showServiceDetail(uuid) {
+    const item = currentServices.find(i => i.uuid === uuid);
+    if (!item) return;
+
+    const rows = [
+        ['Jenis Servis', item.jenis_servis],
+        ['Servis Terakhir', item.tanggal_servis_terakhir ? formatTanggal(item.tanggal_servis_terakhir) : null],
+        ['Servis Berikutnya', item.tanggal_servis_berikutnya ? formatTanggal(item.tanggal_servis_berikutnya) : null],
+        ['Interval', item.interval_hari ? `${item.interval_hari} hari` : null]
+    ];
+
+    openDetailSheet(
+        item.nama_item,
+        rows,
+        () => editService(uuid),
+        () => deleteService(uuid)
+    );
 }
 
 async function markServiceDone(uuid) {
@@ -1907,21 +2173,38 @@ async function loadDocuments() {
         }
 
         listEl.innerHTML = items.map(i => `
-            <div class="list-item">
+            <div class="list-item" onclick="showDocumentDetail('${i.uuid}')">
                 <div class="list-item-icon" style="background:${i.sudah_kedaluwarsa ? '#FEEBEF' : i.akan_kedaluwarsa ? '#FFF3E0' : '#F3EFF6'};">📄</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${i.nama_dokumen}</div>
                     <div class="list-item-subtitle">${JENIS_DOKUMEN_LABEL[i.jenis_dokumen] || i.jenis_dokumen}${i.berlaku_sampai ? ' · Berlaku sampai ' + formatTanggal(i.berlaku_sampai) : ''}</div>
                 </div>
                 ${i.sudah_kedaluwarsa ? '<span class="priority-badge tinggi">Kedaluwarsa</span>' : i.akan_kedaluwarsa ? '<span class="priority-badge sedang">Segera habis</span>' : ''}
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editDocument('${i.uuid}')">✏️</button>
-                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteDocument('${i.uuid}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat dokumen:', err.message);
     }
+}
+
+function showDocumentDetail(uuid) {
+    const doc = currentDocuments.find(i => i.uuid === uuid);
+    if (!doc) return;
+
+    const rows = [
+        ['Jenis', JENIS_DOKUMEN_LABEL[doc.jenis_dokumen] || doc.jenis_dokumen],
+        ['Nomor Dokumen', doc.nomor_dokumen],
+        ['Berlaku Sampai', doc.berlaku_sampai ? formatTanggal(doc.berlaku_sampai) : null],
+        ['Catatan', doc.catatan]
+    ];
+
+    openDetailSheet(
+        doc.nama_dokumen,
+        rows,
+        () => editDocument(uuid),
+        () => deleteDocument(uuid)
+    );
 }
 
 function editDocument(uuid) {
@@ -1991,13 +2274,9 @@ async function loadNotes() {
         }
 
         listEl.innerHTML = notes.map(n => `
-            <div class="card full-width mt-md">
+            <div class="card full-width mt-md" onclick="showNoteDetail('${n.uuid}')">
                 <div class="flex-between">
                     <span class="list-item-title">${n.judul}</span>
-                    <div class="flex gap-sm">
-                        <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editNote('${n.uuid}')">✏️</button>
-                        <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteNote('${n.uuid}')">✕</button>
-                    </div>
                 </div>
                 ${n.isi ? `<p class="text-muted mt-md" style="font-size:13px;">${n.isi}</p>` : ''}
                 <div class="text-muted mt-md" style="font-size:11px;">oleh ${n.nama_pembuat}</div>
@@ -2007,6 +2286,23 @@ async function loadNotes() {
     } catch (err) {
         console.error('Gagal memuat catatan:', err.message);
     }
+}
+
+function showNoteDetail(uuid) {
+    const note = currentNotes.find(n => n.uuid === uuid);
+    if (!note) return;
+
+    const rows = [
+        ['Isi', note.isi ? `<span style="font-weight:400;">${note.isi}</span>` : null],
+        ['Dibuat oleh', note.nama_pembuat]
+    ];
+
+    openDetailSheet(
+        note.judul,
+        rows,
+        () => editNote(uuid),
+        () => deleteNote(uuid)
+    );
 }
 
 function editNote(uuid) {

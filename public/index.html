@@ -560,6 +560,19 @@
         </div>
     </div>
 
+    <!-- Sheet detail generik: dipakai semua daftar, tampil dulu sebelum user pilih Edit/Hapus -->
+    <div class="sheet-overlay" id="sheet-detail" onclick="closeSheetOnOverlay(event, 'sheet-detail')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title" id="detail-sheet-title">Detail</h3>
+            <div id="detail-sheet-body" class="mt-md"></div>
+            <div class="flex gap-sm mt-md">
+                <button type="button" class="btn btn-secondary" style="flex:1;" id="detail-sheet-edit-btn">✏️ Edit</button>
+                <button type="button" class="btn btn-danger" style="flex:1;" id="detail-sheet-delete-btn">🗑️ Hapus</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Form tambah rekening -->
     <div class="sheet-overlay" id="sheet-add-account" onclick="closeSheetOnOverlay(event, 'sheet-add-account')">
         <div class="sheet-content" onclick="event.stopPropagation()">
@@ -598,6 +611,10 @@
             <form id="form-add-expense">
                 <input type="hidden" id="expense-edit-uuid">
                 <div class="form-group">
+                    <label class="form-label">Keterangan (Nama Transaksi)</label>
+                    <input type="text" class="form-input" id="expense-catatan" placeholder="Contoh: Belanja bulanan, Bayar internet" required>
+                </div>
+                <div class="form-group">
                     <label class="form-label">Nominal</label>
                     <input type="number" class="form-input" id="expense-nominal" placeholder="0" required>
                 </div>
@@ -627,10 +644,6 @@
                     <label class="form-label">Tanggal</label>
                     <input type="date" class="form-input" id="expense-tanggal" required>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Catatan (opsional)</label>
-                    <input type="text" class="form-input" id="expense-catatan" placeholder="Catatan tambahan">
-                </div>
                 <button type="submit" class="btn btn-primary btn-block">Simpan Pengeluaran</button>
             </form>
         </div>
@@ -643,6 +656,10 @@
             <h3 class="sheet-title" id="income-sheet-title">Catat Pemasukan</h3>
             <form id="form-add-income">
                 <input type="hidden" id="income-edit-uuid">
+                <div class="form-group">
+                    <label class="form-label">Keterangan (Nama Transaksi)</label>
+                    <input type="text" class="form-input" id="income-catatan" placeholder="Contoh: Gaji Juli, Bonus proyek" required>
+                </div>
                 <div class="form-group">
                     <label class="form-label">Nominal</label>
                     <input type="number" class="form-input" id="income-nominal" placeholder="0" required>
