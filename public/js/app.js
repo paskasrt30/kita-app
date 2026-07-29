@@ -331,11 +331,23 @@ async function loadAccounts() {
                     <div class="list-item-subtitle">${a.nama_bank || a.tipe}</div>
                 </div>
                 <div class="list-item-value">${formatRupiah(a.saldo_saat_ini)}</div>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteAccount('${a.uuid}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat rekening:', err.message);
+    }
+}
+
+async function deleteAccount(uuid) {
+    if (!confirm('Hapus rekening ini? Riwayat transaksi yang sudah tercatat tidak akan terhapus.')) return;
+    try {
+        await apiCall(`/accounts/${uuid}`, { method: 'DELETE' });
+        loadAccounts();
+        loadDashboard();
+    } catch (err) {
+        alert(err.message);
     }
 }
 
