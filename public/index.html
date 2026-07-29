@@ -625,25 +625,36 @@
 
     <!-- Sheet kalkulator: bantu hitung nominal (jumlah, kurang, kali, bagi) sebelum diisi ke form -->
     <div class="sheet-overlay" id="sheet-calculator" onclick="closeSheetOnOverlay(event, 'sheet-calculator')">
-        <div class="sheet-content" onclick="event.stopPropagation()">
+        <div class="sheet-content calculator-sheet" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Kalkulator</h3>
-            <div class="calculator-display" id="calculator-display">0</div>
+            <div class="flex-between">
+                <h3 class="sheet-title" style="margin-bottom:0;">🧮 Kalkulator</h3>
+                <button type="button" class="btn-icon calculator-close" onclick="closeSheet('sheet-calculator')">✕</button>
+            </div>
+
+            <div class="calculator-display">
+                <div class="calculator-expression" id="calculator-expression">&nbsp;</div>
+                <div class="calculator-result">
+                    <span class="calculator-currency">Rp</span>
+                    <span id="calculator-display">0</span>
+                </div>
+            </div>
+
             <div class="calculator-grid">
-                <button type="button" class="calc-btn calc-btn-op" onclick="calcClear()">C</button>
-                <button type="button" class="calc-btn calc-btn-op" onclick="calcBackspace()">⌫</button>
-                <button type="button" class="calc-btn calc-btn-op" onclick="calcOperator('÷')">÷</button>
-                <button type="button" class="calc-btn calc-btn-op" onclick="calcOperator('×')">×</button>
+                <button type="button" class="calc-btn calc-btn-func" onclick="calcClear()">C</button>
+                <button type="button" class="calc-btn calc-btn-func" onclick="calcBackspace()">⌫</button>
+                <button type="button" class="calc-btn calc-btn-op" data-op="÷" onclick="calcOperator('÷')">÷</button>
+                <button type="button" class="calc-btn calc-btn-op" data-op="×" onclick="calcOperator('×')">×</button>
 
                 <button type="button" class="calc-btn" onclick="calcDigit('7')">7</button>
                 <button type="button" class="calc-btn" onclick="calcDigit('8')">8</button>
                 <button type="button" class="calc-btn" onclick="calcDigit('9')">9</button>
-                <button type="button" class="calc-btn calc-btn-op" onclick="calcOperator('-')">−</button>
+                <button type="button" class="calc-btn calc-btn-op" data-op="-" onclick="calcOperator('-')">−</button>
 
                 <button type="button" class="calc-btn" onclick="calcDigit('4')">4</button>
                 <button type="button" class="calc-btn" onclick="calcDigit('5')">5</button>
                 <button type="button" class="calc-btn" onclick="calcDigit('6')">6</button>
-                <button type="button" class="calc-btn calc-btn-op" onclick="calcOperator('+')">+</button>
+                <button type="button" class="calc-btn calc-btn-op" data-op="+" onclick="calcOperator('+')">+</button>
 
                 <button type="button" class="calc-btn" onclick="calcDigit('1')">1</button>
                 <button type="button" class="calc-btn" onclick="calcDigit('2')">2</button>
@@ -653,7 +664,7 @@
                 <button type="button" class="calc-btn calc-btn-zero" onclick="calcDigit('0')">0</button>
                 <button type="button" class="calc-btn" onclick="calcDigit('.')">.</button>
             </div>
-            <button type="button" class="btn btn-primary btn-block mt-md" onclick="calcConfirm()">Gunakan Hasil</button>
+            <button type="button" class="btn btn-primary btn-block mt-md" onclick="calcConfirm()">✓ Gunakan Hasil</button>
         </div>
     </div>
 

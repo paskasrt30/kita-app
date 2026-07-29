@@ -187,6 +187,8 @@ function openCalculatorSheet(inputId) {
     calcPendingOperator = null;
     calcResetOnNextDigit = false;
     updateCalcDisplay();
+    updateCalcExpression();
+    updateCalcActiveOperator();
     openSheet('sheet-calculator');
 }
 
@@ -201,10 +203,27 @@ function updateCalcDisplay() {
     document.getElementById('calculator-display').textContent = formatCalcDisplay(calcDisplayValue);
 }
 
+// Baris kecil di atas hasil, mirip kalkulator Google: nunjukin "angka pertama + operator"
+// yang lagi berjalan supaya user tetap ingat sedang menghitung apa.
+function updateCalcExpression() {
+    const el = document.getElementById('calculator-expression');
+    el.textContent = calcPendingOperator !== null
+        ? `${formatCalcDisplay(trimCalcNumber(calcPreviousValue))} ${calcPendingOperator}`
+        : '';
+}
+
+function updateCalcActiveOperator() {
+    document.querySelectorAll('.calc-btn-op[data-op]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.op === calcPendingOperator);
+    });
+}
+
 function calcDigit(d) {
     if (calcDisplayValue === 'Error' || calcResetOnNextDigit) {
         calcDisplayValue = '0';
         calcResetOnNextDigit = false;
+        // Kalau tidak ada operator berjalan (mis. abis tekan =), ini hitungan baru -> bersihkan sisa ekspresi lama
+        if (calcPendingOperator === null) updateCalcExpression();
     }
     if (d === '.') {
         if (calcDisplayValue.includes('.')) return;
@@ -248,16 +267,25 @@ function calcOperator(op) {
     calcPendingOperator = op;
     calcResetOnNextDigit = true;
     updateCalcDisplay();
+    updateCalcExpression();
+    updateCalcActiveOperator();
 }
 
 function calcEquals() {
     if (calcPendingOperator === null || calcDisplayValue === 'Error') return;
     const current = parseFloat(calcDisplayValue) || 0;
-    calcDisplayValue = trimCalcNumber(calcCompute(calcPreviousValue, current, calcPendingOperator));
+    const op = calcPendingOperator;
+    const prev = calcPreviousValue;
+
+    calcDisplayValue = trimCalcNumber(calcCompute(prev, current, op));
+    document.getElementById('calculator-expression').textContent =
+        `${formatCalcDisplay(trimCalcNumber(prev))} ${op} ${formatCalcDisplay(trimCalcNumber(current))} =`;
+
     calcPreviousValue = null;
     calcPendingOperator = null;
     calcResetOnNextDigit = true;
     updateCalcDisplay();
+    updateCalcActiveOperator();
 }
 
 function calcClear() {
@@ -266,6 +294,8 @@ function calcClear() {
     calcPendingOperator = null;
     calcResetOnNextDigit = false;
     updateCalcDisplay();
+    updateCalcExpression();
+    updateCalcActiveOperator();
 }
 
 function calcBackspace() {

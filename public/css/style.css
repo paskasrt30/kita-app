@@ -261,35 +261,84 @@ a { text-decoration: none; color: inherit; }
 /* ============================================
    KALKULATOR NOMINAL
    ============================================ */
+.calculator-close {
+    width: 32px;
+    height: 32px;
+    background: var(--color-bg-alt);
+    font-size: 13px;
+}
+
 .calculator-display {
     background: var(--color-bg-alt);
     border-radius: var(--radius-md);
-    padding: var(--space-lg) var(--space-md);
+    padding: var(--space-md) var(--space-lg);
     margin: var(--space-md) 0;
     text-align: right;
-    font-size: 32px;
-    font-weight: 700;
+}
+
+.calculator-expression {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    min-height: 18px;
     overflow-x: auto;
     white-space: nowrap;
+}
+
+.calculator-result {
+    margin-top: 2px;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.calculator-currency {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    margin-right: 6px;
+    vertical-align: 2px;
+}
+
+#calculator-display {
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
 }
 
 .calculator-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: var(--space-sm);
+    gap: 10px;
 }
 
 .calc-btn {
-    height: 56px;
-    border-radius: var(--radius-sm);
-    background: var(--color-bg-alt);
+    height: 60px;
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
     font-size: 20px;
     font-weight: 600;
     color: var(--color-text);
+    transition: transform 0.08s ease, filter 0.08s ease, box-shadow 0.08s ease;
 }
 
+.calc-btn:active {
+    transform: scale(0.93);
+    filter: brightness(0.95);
+    box-shadow: none;
+}
+
+.calc-btn-func { background: var(--color-bg-alt); color: var(--color-partner-b); }
+
 .calc-btn-op { background: var(--color-partner-a-light); color: white; }
+
+.calc-btn-op.active {
+    background: var(--color-partner-a);
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.3);
+}
+
 .calc-btn-equals { background: var(--gradient-couple); color: white; }
+
 .calc-btn-zero { grid-column: span 3; }
 
 /* ============================================
