@@ -258,6 +258,65 @@ a { text-decoration: none; color: inherit; }
     font-weight: 600;
 }
 
+/* ============================================
+   KALENDER (tampilan grid bulanan)
+   ============================================ */
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+}
+
+.calendar-nav h2 { font-size: 16px; }
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.calendar-weekday {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    padding-bottom: var(--space-sm);
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+}
+
+.calendar-day.empty {
+    visibility: hidden;
+    cursor: default;
+    box-shadow: none;
+}
+
+.calendar-day.today { border: 1.5px solid var(--color-partner-a); font-weight: 700; }
+
+.calendar-day.selected { background: var(--color-partner-a); color: white; }
+
+.calendar-day .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-partner-b);
+}
+
+.calendar-day.selected .dot { background: white; }
+
 .card-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -703,6 +762,7 @@ a { text-decoration: none; color: inherit; }
 .sheet-title { font-size: 18px; margin-bottom: var(--space-md); }
 
 /* Utility */
+.hidden { display: none; }
 .text-muted { color: var(--color-text-muted); }
 .text-center { text-align: center; }
 .mt-md { margin-top: var(--space-md); }

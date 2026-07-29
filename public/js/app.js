@@ -80,7 +80,7 @@ function navigateTo(pageId) {
     if (pageId === 'page-budgets') loadBudgets();
     if (pageId === 'page-savings') loadSavings();
     if (pageId === 'page-todos') loadTodos();
-    if (pageId === 'page-calendar') loadCalendar();
+    if (pageId === 'page-calendar') initCalendarPage();
     if (pageId === 'page-shopping') loadShopping();
     if (pageId === 'page-bills') loadBills();
     if (pageId === 'page-debts') loadDebts();
@@ -1055,7 +1055,133 @@ const TIPE_ICON_CAL = {
     keluarga: '👨‍👩‍👧', ulang_tahun: '🎂', anniversary: '💑', lainnya: '📌'
 };
 
-async function loadCalendar() {
+const BULAN_LABEL_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const HARI_LABEL = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+let calendarViewMode = 'grid';
+let calendarViewDate = new Date();
+let calendarSelectedDate = todayISO();
+let calendarMonthEvents = [];
+
+function initCalendarPage() {
+    switchCalendarView(calendarViewMode);
+}
+
+function switchCalendarView(mode) {
+    calendarViewMode = mode;
+    document.getElementById('calendar-tab-grid').classList.toggle('btn-primary', mode === 'grid');
+    document.getElementById('calendar-tab-grid').classList.toggle('btn-secondary', mode !== 'grid');
+    document.getElementById('calendar-tab-list').classList.toggle('btn-primary', mode === 'list');
+    document.getElementById('calendar-tab-list').classList.toggle('btn-secondary', mode !== 'list');
+    document.getElementById('calendar-grid-view').classList.toggle('hidden', mode !== 'grid');
+    document.getElementById('calendar-list-view').classList.toggle('hidden', mode !== 'list');
+
+    if (mode === 'grid') loadCalendarGrid();
+    else loadCalendarList();
+}
+
+function refreshCalendarView() {
+    if (calendarViewMode === 'grid') loadCalendarGrid();
+    else loadCalendarList();
+}
+
+function changeCalendarMonth(delta) {
+    calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + delta, 1);
+
+    // Hari terpilih ikut pindah ke bulan baru: tanggal hari ini kalau bulan ini
+    // masih terlihat, kalau tidak default ke tanggal 1 supaya labelnya tidak nyangkut
+    // di bulan sebelumnya.
+    const todayStr = todayISO();
+    const isCurrentMonthVisible = todayStr.slice(0, 7) === `${calendarViewDate.getFullYear()}-${String(calendarViewDate.getMonth() + 1).padStart(2, '0')}`;
+    calendarSelectedDate = isCurrentMonthVisible
+        ? todayStr
+        : `${calendarViewDate.getFullYear()}-${String(calendarViewDate.getMonth() + 1).padStart(2, '0')}-01`;
+
+    loadCalendarGrid();
+}
+
+async function loadCalendarGrid() {
+    try {
+        const year = calendarViewDate.getFullYear();
+        const month = calendarViewDate.getMonth();
+        const dari = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        const sampai = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
+
+        const res = await apiCall(`/calendar?dari=${dari}&sampai=${sampai}`);
+        calendarMonthEvents = res.data;
+        currentCalendarEvents = calendarMonthEvents;
+
+        renderCalendarGrid();
+    } catch (err) {
+        console.error('Gagal memuat kalender:', err.message);
+    }
+}
+
+function renderCalendarGrid() {
+    const year = calendarViewDate.getFullYear();
+    const month = calendarViewDate.getMonth();
+    document.getElementById('calendar-month-label').textContent = `${BULAN_LABEL_FULL[month]} ${year}`;
+
+    const eventsByDate = {};
+    calendarMonthEvents.forEach(ev => {
+        const d = ev.tanggal_mulai.slice(0, 10);
+        eventsByDate[d] = (eventsByDate[d] || 0) + 1;
+    });
+
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const startWeekday = new Date(year, month, 1).getDay();
+    const todayStr = todayISO();
+
+    let html = HARI_LABEL.map(h => `<div class="calendar-weekday">${h}</div>`).join('');
+    for (let i = 0; i < startWeekday; i++) {
+        html += '<div class="calendar-day empty"></div>';
+    }
+    for (let d = 1; d <= totalDays; d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const hasEvent = eventsByDate[dateStr];
+        const isToday = dateStr === todayStr;
+        const isSelected = dateStr === calendarSelectedDate;
+        html += `
+            <div class="calendar-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" onclick="selectCalendarDay('${dateStr}')">
+                <span>${d}</span>
+                ${hasEvent ? '<span class="dot"></span>' : ''}
+            </div>
+        `;
+    }
+
+    document.getElementById('calendar-grid').innerHTML = html;
+    renderCalendarDayEvents(calendarSelectedDate);
+}
+
+function selectCalendarDay(dateStr) {
+    calendarSelectedDate = dateStr;
+    renderCalendarGrid();
+}
+
+function renderCalendarDayEvents(dateStr) {
+    const d = new Date(`${dateStr}T00:00:00`);
+    document.getElementById('calendar-day-label').textContent =
+        d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    const dayEvents = calendarMonthEvents.filter(ev => ev.tanggal_mulai.slice(0, 10) === dateStr);
+    const listEl = document.getElementById('calendar-day-events');
+    if (dayEvents.length === 0) {
+        listEl.innerHTML = '<div class="empty-state"><div class="emoji">📅</div><p>Tidak ada jadwal di hari ini</p></div>';
+        return;
+    }
+
+    listEl.innerHTML = dayEvents.map(ev => `
+        <div class="list-item" onclick="showCalendarDetail('${ev.uuid}')">
+            <div class="list-item-icon" style="background:#F3EFF6;">${TIPE_ICON_CAL[ev.tipe] || '📌'}</div>
+            <div class="list-item-body">
+                <div class="list-item-title">${ev.judul}</div>
+                <div class="list-item-subtitle">${new Date(ev.tanggal_mulai).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}${ev.lokasi ? ' · ' + ev.lokasi : ''}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function loadCalendarList() {
     try {
         const res = await apiCall('/calendar?upcoming_limit=30');
         const events = res.data;
@@ -1118,7 +1244,7 @@ async function deleteCalendarEvent(uuid) {
     if (!confirm('Hapus jadwal ini?')) return;
     try {
         await apiCall(`/calendar/${uuid}`, { method: 'DELETE' });
-        loadCalendar();
+        refreshCalendarView();
         if (document.getElementById('page-dashboard').classList.contains('hidden') === false) loadDashboard();
     } catch (err) {
         alert(err.message);
@@ -1144,7 +1270,7 @@ document.getElementById('form-add-calendar').addEventListener('submit', async (e
 
         closeSheet('sheet-add-calendar');
         e.target.reset();
-        loadCalendar();
+        refreshCalendarView();
         if (document.getElementById('page-dashboard').classList.contains('hidden') === false) loadDashboard();
 
     } catch (err) {

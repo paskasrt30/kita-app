@@ -322,7 +322,27 @@
             </div>
             <button class="btn-icon" onclick="openSheet('sheet-add-calendar')">＋</button>
         </div>
-        <div id="calendar-list"></div>
+        <div class="flex gap-sm" style="padding: 0 4px 16px;">
+            <button class="btn btn-primary" id="calendar-tab-grid" onclick="switchCalendarView('grid')" style="flex:1;">📅 Kalender</button>
+            <button class="btn btn-secondary" id="calendar-tab-list" onclick="switchCalendarView('list')" style="flex:1;">📋 List</button>
+        </div>
+
+        <!-- Tampilan kalender (grid bulanan + agenda hari terpilih) -->
+        <div id="calendar-grid-view">
+            <div class="calendar-nav">
+                <button class="btn-icon" onclick="changeCalendarMonth(-1)">‹</button>
+                <h2 id="calendar-month-label">-</h2>
+                <button class="btn-icon" onclick="changeCalendarMonth(1)">›</button>
+            </div>
+            <div class="calendar-grid" id="calendar-grid"></div>
+            <div class="section-header mt-md"><h2 id="calendar-day-label">-</h2></div>
+            <div id="calendar-day-events"></div>
+        </div>
+
+        <!-- Tampilan list agenda mendatang -->
+        <div id="calendar-list-view" class="hidden">
+            <div id="calendar-list"></div>
+        </div>
     </div>
 
     <!-- ==================== SHOPPING LIST ==================== -->
