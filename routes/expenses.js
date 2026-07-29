@@ -119,6 +119,48 @@ router.post('/', async (req, res) => {
     }
 });
 
+// ==================== EDIT PENGELUARAN ====================
+router.put('/:uuid', async (req, res) => {
+    const updateTx = db.transaction(async (uuid, coupleId, body) => {
+        const expense = await db.prepare('SELECT * FROM expenses WHERE uuid = ? AND couple_id = ?').get(uuid, coupleId);
+        if (!expense) {
+            throw { statusCode: 404, message: 'Data pengeluaran tidak ditemukan' };
+        }
+
+        const { tanggal, nominal, kategori, metode_pembayaran, catatan } = body;
+
+        if (nominal !== undefined && nominal <= 0) {
+            throw { statusCode: 400, message: 'Nominal harus lebih besar dari 0' };
+        }
+
+        // Sesuaikan saldo rekening kalau nominal berubah dan data ini terkait rekening
+        if (expense.account_id && nominal !== undefined && Number(nominal) !== expense.nominal) {
+            const delta = Number(nominal) - expense.nominal;
+            await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini - ? WHERE id = ?').run(delta, expense.account_id);
+        }
+
+        await db.prepare(`
+            UPDATE expenses SET
+                tanggal = COALESCE(?, tanggal),
+                nominal = COALESCE(?, nominal),
+                kategori = COALESCE(?, kategori),
+                metode_pembayaran = COALESCE(?, metode_pembayaran),
+                catatan = COALESCE(?, catatan)
+            WHERE uuid = ?
+        `).run(tanggal, nominal, kategori, metode_pembayaran, catatan, uuid);
+    });
+
+    try {
+        await updateTx(req.params.uuid, req.user.couple_id, req.body);
+        const updated = await db.prepare('SELECT * FROM expenses WHERE uuid = ?').get(req.params.uuid);
+        res.json({ status: 'success', message: 'Pengeluaran berhasil diperbarui', data: updated });
+    } catch (err) {
+        console.error(err);
+        const statusCode = err.statusCode || 500;
+        res.status(statusCode).json({ status: 'error', message: err.message || 'Terjadi kesalahan pada server' });
+    }
+});
+
 // ==================== HAPUS PENGELUARAN ====================
 router.delete('/:uuid', async (req, res) => {
     const deleteTx = db.transaction(async (uuid, coupleId) => {

@@ -91,6 +91,48 @@ router.post('/', async (req, res) => {
     }
 });
 
+// ==================== EDIT PEMASUKAN ====================
+router.put('/:uuid', async (req, res) => {
+    const updateTx = db.transaction(async (uuid, coupleId, body) => {
+        const income = await db.prepare('SELECT * FROM income WHERE uuid = ? AND couple_id = ?').get(uuid, coupleId);
+        if (!income) {
+            throw { statusCode: 404, message: 'Data pemasukan tidak ditemukan' };
+        }
+
+        const { tanggal, nominal, sumber, kategori, catatan } = body;
+
+        if (nominal !== undefined && nominal <= 0) {
+            throw { statusCode: 400, message: 'Nominal harus lebih besar dari 0' };
+        }
+
+        // Sesuaikan saldo rekening kalau nominal berubah dan data ini terkait rekening
+        if (income.account_id && nominal !== undefined && Number(nominal) !== income.nominal) {
+            const delta = Number(nominal) - income.nominal;
+            await db.prepare('UPDATE accounts SET saldo_saat_ini = saldo_saat_ini + ? WHERE id = ?').run(delta, income.account_id);
+        }
+
+        await db.prepare(`
+            UPDATE income SET
+                tanggal = COALESCE(?, tanggal),
+                nominal = COALESCE(?, nominal),
+                sumber = COALESCE(?, sumber),
+                kategori = COALESCE(?, kategori),
+                catatan = COALESCE(?, catatan)
+            WHERE uuid = ?
+        `).run(tanggal, nominal, sumber, kategori, catatan, uuid);
+    });
+
+    try {
+        await updateTx(req.params.uuid, req.user.couple_id, req.body);
+        const updated = await db.prepare('SELECT * FROM income WHERE uuid = ?').get(req.params.uuid);
+        res.json({ status: 'success', message: 'Pemasukan berhasil diperbarui', data: updated });
+    } catch (err) {
+        console.error(err);
+        const statusCode = err.statusCode || 500;
+        res.status(statusCode).json({ status: 'error', message: err.message || 'Terjadi kesalahan pada server' });
+    }
+});
+
 // ==================== HAPUS PEMASUKAN ====================
 router.delete('/:uuid', async (req, res) => {
     const deleteTx = db.transaction(async (uuid, coupleId) => {

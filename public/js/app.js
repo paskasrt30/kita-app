@@ -40,6 +40,13 @@ function todayISO() {
     return new Date().toISOString().split('T')[0];
 }
 
+function toDatetimeLocalValue(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 async function apiCall(endpoint, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
@@ -95,8 +102,43 @@ function openSheet(sheetId) {
     tanggalInputs.forEach(input => { if (!input.value) input.value = todayISO(); });
 }
 
+// Sheet form yang dipakai bareng untuk tambah & edit. Field di sini di-reset balik
+// ke mode "tambah" setiap sheet ditutup, supaya sisa state edit sebelumnya tidak
+// nyangkut ke pemakaian "+" berikutnya.
+const SHEET_EDIT_CONFIG = {
+    'sheet-add-account': { editField: 'account-edit-uuid', titleEl: 'account-sheet-title', addTitle: 'Tambah Rekening', disableFields: ['account-tipe', 'account-saldo'] },
+    'sheet-add-expense': { editField: 'expense-edit-uuid', titleEl: 'expense-sheet-title', addTitle: 'Catat Pengeluaran' },
+    'sheet-add-income': { editField: 'income-edit-uuid', titleEl: 'income-sheet-title', addTitle: 'Catat Pemasukan' },
+    'sheet-add-budget': { editField: 'budget-edit-mode', titleEl: 'budget-sheet-title', addTitle: 'Atur Anggaran', disableFields: ['budget-kategori'] },
+    'sheet-add-savings': { editField: 'savings-edit-uuid', titleEl: 'savings-sheet-title', addTitle: 'Buat Target Tabungan' },
+    'sheet-add-todo': { editField: 'todo-edit-uuid', titleEl: 'todo-sheet-title', addTitle: 'Tambah Tugas' },
+    'sheet-add-calendar': { editField: 'calendar-edit-uuid', titleEl: 'calendar-sheet-title', addTitle: 'Tambah Jadwal' },
+    'sheet-add-shopping-item': { editField: 'shopping-item-edit-id', titleEl: 'shopping-item-sheet-title', addTitle: 'Tambah Barang' },
+    'sheet-add-bill': { editField: 'bill-edit-id', titleEl: 'bill-sheet-title', addTitle: 'Tambah Tagihan Rutin' },
+    'sheet-add-debt': { editField: 'debt-edit-uuid', titleEl: 'debt-sheet-title', addTitle: 'Tambah Hutang / Piutang', disableFields: ['debt-tipe', 'debt-nominal', 'debt-mulai'] },
+    'sheet-add-stock': { editField: 'stock-edit-uuid', titleEl: 'stock-sheet-title', addTitle: 'Tambah Stok Barang', disableFields: ['stock-jumlah'] },
+    'sheet-add-inventory': { editField: 'inv-edit-uuid', titleEl: 'inventory-sheet-title', addTitle: 'Tambah Barang Inventaris', disableFields: ['inv-harga', 'inv-tanggal-beli', 'inv-garansi'] },
+    'sheet-add-service': { editField: 'service-edit-uuid', titleEl: 'service-sheet-title', addTitle: 'Tambah Jadwal Servis' },
+    'sheet-add-document': { editField: 'doc-edit-uuid', titleEl: 'document-sheet-title', addTitle: 'Tambah Dokumen', disableFields: ['doc-jenis'] },
+    'sheet-add-note': { editField: 'note-edit-uuid', titleEl: 'note-sheet-title', addTitle: 'Tambah Catatan' }
+};
+
+function resetSheetToAddMode(sheetId) {
+    const config = SHEET_EDIT_CONFIG[sheetId];
+    if (!config) return;
+    const editField = document.getElementById(config.editField);
+    if (editField) editField.value = '';
+    const titleEl = document.getElementById(config.titleEl);
+    if (titleEl) titleEl.textContent = config.addTitle;
+    (config.disableFields || []).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = false;
+    });
+}
+
 function closeSheet(sheetId) {
     document.getElementById(sheetId).classList.remove('show');
+    resetSheetToAddMode(sheetId);
 }
 
 function closeSheetOnOverlay(event, sheetId) {
@@ -331,6 +373,7 @@ async function loadAccounts() {
                     <div class="list-item-subtitle">${a.nama_bank || a.tipe}</div>
                 </div>
                 <div class="list-item-value">${formatRupiah(a.saldo_saat_ini)}</div>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editAccount('${a.uuid}')">✏️</button>
                 <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteAccount('${a.uuid}')">✕</button>
             </div>
         `).join('');
@@ -338,6 +381,20 @@ async function loadAccounts() {
     } catch (err) {
         console.error('Gagal memuat rekening:', err.message);
     }
+}
+
+function editAccount(uuid) {
+    const account = state.accounts.find(a => a.uuid === uuid);
+    if (!account) return;
+
+    document.getElementById('account-edit-uuid').value = uuid;
+    document.getElementById('account-nama').value = account.nama_rekening;
+    document.getElementById('account-tipe').value = account.tipe;
+    document.getElementById('account-tipe').disabled = true;
+    document.getElementById('account-saldo').value = account.saldo_awal;
+    document.getElementById('account-saldo').disabled = true;
+    document.getElementById('account-sheet-title').textContent = 'Edit Rekening';
+    openSheet('sheet-add-account');
 }
 
 async function deleteAccount(uuid) {
@@ -354,14 +411,23 @@ async function deleteAccount(uuid) {
 document.getElementById('form-add-account').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/accounts', {
-            method: 'POST',
-            body: JSON.stringify({
-                nama_rekening: document.getElementById('account-nama').value,
-                tipe: document.getElementById('account-tipe').value,
-                saldo_awal: Number(document.getElementById('account-saldo').value)
-            })
-        });
+        const editUuid = document.getElementById('account-edit-uuid').value;
+
+        if (editUuid) {
+            await apiCall(`/accounts/${editUuid}`, {
+                method: 'PUT',
+                body: JSON.stringify({ nama_rekening: document.getElementById('account-nama').value })
+            });
+        } else {
+            await apiCall('/accounts', {
+                method: 'POST',
+                body: JSON.stringify({
+                    nama_rekening: document.getElementById('account-nama').value,
+                    tipe: document.getElementById('account-tipe').value,
+                    saldo_awal: Number(document.getElementById('account-saldo').value)
+                })
+            });
+        }
 
         closeSheet('sheet-add-account');
         e.target.reset();
@@ -386,11 +452,14 @@ function switchTransactionTab(tab) {
     loadTransactions();
 }
 
+let currentTransactionItems = [];
+
 async function loadTransactions() {
     try {
         const endpoint = activeTransactionTab === 'expense' ? '/expenses' : '/income';
         const res = await apiCall(endpoint);
         const items = res.data.items;
+        currentTransactionItems = items;
 
         const listEl = document.getElementById('transactions-list');
         if (items.length === 0) {
@@ -410,12 +479,35 @@ async function loadTransactions() {
                 <div class="list-item-value ${activeTransactionTab === 'expense' ? 'expense' : 'income'}">
                     ${activeTransactionTab === 'expense' ? '-' : '+'}${formatRupiah(item.nominal)}
                 </div>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editTransaction('${item.uuid}', '${activeTransactionTab}')">✏️</button>
                 <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteTransaction('${item.uuid}', '${activeTransactionTab}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat transaksi:', err.message);
+    }
+}
+
+function editTransaction(uuid, tipe) {
+    const item = currentTransactionItems.find(i => i.uuid === uuid);
+    if (!item) return;
+
+    if (tipe === 'expense') {
+        document.getElementById('expense-edit-uuid').value = uuid;
+        document.getElementById('expense-nominal').value = item.nominal;
+        document.getElementById('expense-kategori').value = item.kategori;
+        document.getElementById('expense-tanggal').value = item.tanggal;
+        document.getElementById('expense-catatan').value = item.catatan || '';
+        document.getElementById('expense-sheet-title').textContent = 'Edit Pengeluaran';
+        openSheet('sheet-add-expense');
+    } else {
+        document.getElementById('income-edit-uuid').value = uuid;
+        document.getElementById('income-nominal').value = item.nominal;
+        document.getElementById('income-sumber').value = item.sumber;
+        document.getElementById('income-tanggal').value = item.tanggal;
+        document.getElementById('income-sheet-title').textContent = 'Edit Pemasukan';
+        openSheet('sheet-add-income');
     }
 }
 
@@ -435,15 +527,19 @@ async function deleteTransaction(uuid, tipe) {
 document.getElementById('form-add-expense').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/expenses', {
-            method: 'POST',
-            body: JSON.stringify({
-                nominal: Number(document.getElementById('expense-nominal').value),
-                kategori: document.getElementById('expense-kategori').value,
-                tanggal: document.getElementById('expense-tanggal').value,
-                catatan: document.getElementById('expense-catatan').value
-            })
-        });
+        const editUuid = document.getElementById('expense-edit-uuid').value;
+        const payload = {
+            nominal: Number(document.getElementById('expense-nominal').value),
+            kategori: document.getElementById('expense-kategori').value,
+            tanggal: document.getElementById('expense-tanggal').value,
+            catatan: document.getElementById('expense-catatan').value
+        };
+
+        if (editUuid) {
+            await apiCall(`/expenses/${editUuid}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/expenses', { method: 'POST', body: JSON.stringify(payload) });
+        }
 
         closeSheet('sheet-add-expense');
         e.target.reset();
@@ -459,14 +555,18 @@ document.getElementById('form-add-expense').addEventListener('submit', async (e)
 document.getElementById('form-add-income').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/income', {
-            method: 'POST',
-            body: JSON.stringify({
-                nominal: Number(document.getElementById('income-nominal').value),
-                sumber: document.getElementById('income-sumber').value,
-                tanggal: document.getElementById('income-tanggal').value
-            })
-        });
+        const editUuid = document.getElementById('income-edit-uuid').value;
+        const payload = {
+            nominal: Number(document.getElementById('income-nominal').value),
+            sumber: document.getElementById('income-sumber').value,
+            tanggal: document.getElementById('income-tanggal').value
+        };
+
+        if (editUuid) {
+            await apiCall(`/income/${editUuid}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/income', { method: 'POST', body: JSON.stringify(payload) });
+        }
 
         closeSheet('sheet-add-income');
         e.target.reset();
@@ -499,7 +599,11 @@ async function loadBudgets() {
                 <div class="card full-width mt-md">
                     <div class="flex-between">
                         <span class="list-item-title">${KATEGORI_LABELS[b.kategori] || b.kategori}</span>
-                        <span class="text-muted" style="font-size:12px;">${b.persentase}%</span>
+                        <div class="flex gap-sm">
+                            <span class="text-muted" style="font-size:12px;">${b.persentase}%</span>
+                            <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="editBudget(${b.id}, '${b.kategori}', ${b.target_nominal})">✏️</button>
+                            <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="deleteBudget(${b.id})">✕</button>
+                        </div>
                     </div>
                     <div class="progress-track"><div class="progress-fill ${barClass}" style="width:${Math.min(b.persentase, 100)}%"></div></div>
                     <div class="flex-between mt-md" style="font-size:12px;">
@@ -514,6 +618,25 @@ async function loadBudgets() {
 
     } catch (err) {
         console.error('Gagal memuat anggaran:', err.message);
+    }
+}
+
+function editBudget(id, kategori, targetNominal) {
+    document.getElementById('budget-edit-mode').value = 'edit';
+    document.getElementById('budget-kategori').value = kategori;
+    document.getElementById('budget-kategori').disabled = true;
+    document.getElementById('budget-target').value = targetNominal;
+    document.getElementById('budget-sheet-title').textContent = 'Edit Anggaran';
+    openSheet('sheet-add-budget');
+}
+
+async function deleteBudget(id) {
+    if (!confirm('Hapus anggaran kategori ini?')) return;
+    try {
+        await apiCall(`/budgets/${id}`, { method: 'DELETE' });
+        loadBudgets();
+    } catch (err) {
+        alert(err.message);
     }
 }
 
@@ -543,10 +666,13 @@ document.getElementById('form-add-budget').addEventListener('submit', async (e) 
 // ============================================
 // TABUNGAN
 // ============================================
+let currentSavingsGoals = [];
+
 async function loadSavings() {
     try {
         const res = await apiCall('/savings');
-        const goals = res.data;
+        const goals = res.data.filter(g => g.status !== 'cancelled');
+        currentSavingsGoals = goals;
 
         const listEl = document.getElementById('savings-list');
         if (goals.length === 0) {
@@ -560,7 +686,11 @@ async function loadSavings() {
                 <div class="card full-width mt-md">
                     <div class="flex-between">
                         <span class="list-item-title">${g.status === 'completed' ? '🎉 ' : ''}${g.nama_target}</span>
-                        <span class="text-muted" style="font-size:12px;">${g.progress_persen}%</span>
+                        <div class="flex gap-sm">
+                            <span class="text-muted" style="font-size:12px;">${g.progress_persen}%</span>
+                            <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="editSavings('${g.uuid}')">✏️</button>
+                            <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="deleteSavings('${g.uuid}')">✕</button>
+                        </div>
                     </div>
                     <div class="progress-track"><div class="progress-fill" style="width:${Math.min(g.progress_persen, 100)}%"></div></div>
                     <div class="flex-between mt-md" style="font-size:12px;">
@@ -577,6 +707,28 @@ async function loadSavings() {
     }
 }
 
+function editSavings(uuid) {
+    const goal = currentSavingsGoals.find(g => g.uuid === uuid);
+    if (!goal) return;
+
+    document.getElementById('savings-edit-uuid').value = uuid;
+    document.getElementById('savings-nama').value = goal.nama_target;
+    document.getElementById('savings-target').value = goal.target_nominal;
+    document.getElementById('savings-tanggal').value = goal.target_tanggal || '';
+    document.getElementById('savings-sheet-title').textContent = 'Edit Target Tabungan';
+    openSheet('sheet-add-savings');
+}
+
+async function deleteSavings(uuid) {
+    if (!confirm('Batalkan target tabungan ini?')) return;
+    try {
+        await apiCall(`/savings/${uuid}`, { method: 'DELETE' });
+        loadSavings();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
 function openDepositSheet(goalUuid) {
     document.getElementById('deposit-goal-uuid').value = goalUuid;
     const options = '<option value="">Tidak mengurangi saldo rekening</option>' +
@@ -588,14 +740,18 @@ function openDepositSheet(goalUuid) {
 document.getElementById('form-add-savings').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/savings', {
-            method: 'POST',
-            body: JSON.stringify({
-                nama_target: document.getElementById('savings-nama').value,
-                target_nominal: Number(document.getElementById('savings-target').value),
-                target_tanggal: document.getElementById('savings-tanggal').value || null
-            })
-        });
+        const editUuid = document.getElementById('savings-edit-uuid').value;
+        const payload = {
+            nama_target: document.getElementById('savings-nama').value,
+            target_nominal: Number(document.getElementById('savings-target').value),
+            target_tanggal: document.getElementById('savings-tanggal').value || null
+        };
+
+        if (editUuid) {
+            await apiCall(`/savings/${editUuid}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/savings', { method: 'POST', body: JSON.stringify(payload) });
+        }
 
         closeSheet('sheet-add-savings');
         e.target.reset();
@@ -647,11 +803,14 @@ function switchTodoFilter(filter) {
     loadTodos();
 }
 
+let currentTodos = [];
+
 async function loadTodos() {
     try {
         const endpoint = activeTodoFilter ? `/todos?status=${activeTodoFilter}` : '/todos';
         const res = await apiCall(endpoint);
         const todos = res.data;
+        currentTodos = todos;
 
         const listEl = document.getElementById('todos-list');
         if (todos.length === 0) {
@@ -669,11 +828,23 @@ async function loadTodos() {
                     <div class="list-item-subtitle">${t.nama_assigned || 'Belum ditugaskan'}${t.deadline ? ' · ' + formatTanggal(t.deadline) : ''}</div>
                 </div>
                 <span class="priority-badge ${t.prioritas}">${t.prioritas}</span>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editTodo('${t.uuid}')">✏️</button>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteTodo('${t.uuid}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat tugas:', err.message);
+    }
+}
+
+async function deleteTodo(uuid) {
+    if (!confirm('Hapus tugas ini?')) return;
+    try {
+        await apiCall(`/todos/${uuid}`, { method: 'DELETE' });
+        loadTodos();
+    } catch (err) {
+        alert(err.message);
     }
 }
 
@@ -691,7 +862,7 @@ async function toggleTodoStatus(uuid, currentStatus) {
     }
 }
 
-async function openTodoSheet() {
+async function populateTodoAssignedOptions() {
     try {
         const me = await apiCall('/auth/me');
         const options = ['<option value="">Belum ditugaskan</option>', `<option value="${me.data.id}">Saya (${me.data.nama})</option>`];
@@ -702,22 +873,44 @@ async function openTodoSheet() {
     } catch (err) {
         console.error('Gagal memuat data pasangan:', err.message);
     }
+}
+
+async function openTodoSheet() {
+    await populateTodoAssignedOptions();
+    openSheet('sheet-add-todo');
+}
+
+async function editTodo(uuid) {
+    const todo = currentTodos.find(t => t.uuid === uuid);
+    if (!todo) return;
+
+    await populateTodoAssignedOptions();
+    document.getElementById('todo-edit-uuid').value = uuid;
+    document.getElementById('todo-judul').value = todo.judul;
+    document.getElementById('todo-assigned').value = todo.assigned_to || '';
+    document.getElementById('todo-prioritas').value = todo.prioritas;
+    document.getElementById('todo-deadline').value = toDatetimeLocalValue(todo.deadline);
+    document.getElementById('todo-sheet-title').textContent = 'Edit Tugas';
     openSheet('sheet-add-todo');
 }
 
 document.getElementById('form-add-todo').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
+        const editUuid = document.getElementById('todo-edit-uuid').value;
         const assignedTo = document.getElementById('todo-assigned').value;
-        await apiCall('/todos', {
-            method: 'POST',
-            body: JSON.stringify({
-                judul: document.getElementById('todo-judul').value,
-                assigned_to: assignedTo ? Number(assignedTo) : null,
-                prioritas: document.getElementById('todo-prioritas').value,
-                deadline: document.getElementById('todo-deadline').value || null
-            })
-        });
+        const payload = {
+            judul: document.getElementById('todo-judul').value,
+            assigned_to: assignedTo ? Number(assignedTo) : null,
+            prioritas: document.getElementById('todo-prioritas').value,
+            deadline: document.getElementById('todo-deadline').value || null
+        };
+
+        if (editUuid) {
+            await apiCall(`/todos/${editUuid}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/todos', { method: 'POST', body: JSON.stringify(payload) });
+        }
 
         closeSheet('sheet-add-todo');
         e.target.reset();
@@ -731,21 +924,23 @@ document.getElementById('form-add-todo').addEventListener('submit', async (e) =>
 // ============================================
 // KALENDER
 // ============================================
+let currentCalendarEvents = [];
+const TIPE_ICON_CAL = {
+    kerja: '💼', cuti: '🏖️', dokter: '🩺', liburan: '✈️',
+    keluarga: '👨‍👩‍👧', ulang_tahun: '🎂', anniversary: '💑', lainnya: '📌'
+};
+
 async function loadCalendar() {
     try {
         const res = await apiCall('/calendar?upcoming_limit=30');
         const events = res.data;
+        currentCalendarEvents = events;
 
         const listEl = document.getElementById('calendar-list');
         if (events.length === 0) {
             listEl.innerHTML = '<div class="empty-state"><div class="emoji">📅</div><p>Belum ada jadwal mendatang</p></div>';
             return;
         }
-
-        const TIPE_ICON_CAL = {
-            kerja: '💼', cuti: '🏖️', dokter: '🩺', liburan: '✈️',
-            keluarga: '👨‍👩‍👧', ulang_tahun: '🎂', anniversary: '💑', lainnya: '📌'
-        };
 
         listEl.innerHTML = events.map(ev => `
             <div class="list-item">
@@ -754,6 +949,8 @@ async function loadCalendar() {
                     <div class="list-item-title">${ev.judul}</div>
                     <div class="list-item-subtitle">${new Date(ev.tanggal_mulai).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${ev.lokasi ? ' · ' + ev.lokasi : ''}</div>
                 </div>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editCalendarEvent('${ev.uuid}')">✏️</button>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteCalendarEvent('${ev.uuid}')">✕</button>
             </div>
         `).join('');
 
@@ -762,18 +959,46 @@ async function loadCalendar() {
     }
 }
 
+function editCalendarEvent(uuid) {
+    const ev = currentCalendarEvents.find(e => e.uuid === uuid);
+    if (!ev) return;
+
+    document.getElementById('calendar-edit-uuid').value = uuid;
+    document.getElementById('calendar-judul').value = ev.judul;
+    document.getElementById('calendar-tipe').value = ev.tipe;
+    document.getElementById('calendar-mulai').value = toDatetimeLocalValue(ev.tanggal_mulai);
+    document.getElementById('calendar-lokasi').value = ev.lokasi || '';
+    document.getElementById('calendar-sheet-title').textContent = 'Edit Jadwal';
+    openSheet('sheet-add-calendar');
+}
+
+async function deleteCalendarEvent(uuid) {
+    if (!confirm('Hapus jadwal ini?')) return;
+    try {
+        await apiCall(`/calendar/${uuid}`, { method: 'DELETE' });
+        loadCalendar();
+        if (document.getElementById('page-dashboard').classList.contains('hidden') === false) loadDashboard();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
 document.getElementById('form-add-calendar').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/calendar', {
-            method: 'POST',
-            body: JSON.stringify({
-                judul: document.getElementById('calendar-judul').value,
-                tipe: document.getElementById('calendar-tipe').value,
-                tanggal_mulai: document.getElementById('calendar-mulai').value,
-                lokasi: document.getElementById('calendar-lokasi').value || null
-            })
-        });
+        const editUuid = document.getElementById('calendar-edit-uuid').value;
+        const payload = {
+            judul: document.getElementById('calendar-judul').value,
+            tipe: document.getElementById('calendar-tipe').value,
+            tanggal_mulai: document.getElementById('calendar-mulai').value,
+            lokasi: document.getElementById('calendar-lokasi').value || null
+        };
+
+        if (editUuid) {
+            await apiCall(`/calendar/${editUuid}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/calendar', { method: 'POST', body: JSON.stringify(payload) });
+        }
 
         closeSheet('sheet-add-calendar');
         e.target.reset();
@@ -790,11 +1015,14 @@ document.getElementById('form-add-calendar').addEventListener('submit', async (e
 // ============================================
 let currentShoppingListUuid = null;
 
+let currentShoppingItems = [];
+
 async function loadShopping() {
     try {
         const res = await apiCall('/shopping/active');
         const list = res.data;
         currentShoppingListUuid = list.uuid;
+        currentShoppingItems = list.items;
 
         document.getElementById('shopping-list-nama').textContent = list.nama_list;
 
@@ -825,6 +1053,7 @@ async function loadShopping() {
                     <div class="list-item-title">${item.nama_barang}${item.jumlah ? ' (' + item.jumlah + ')' : ''}</div>
                 </div>
                 ${item.estimasi_harga ? `<div class="list-item-value">${formatRupiah(item.estimasi_harga)}</div>` : ''}
+                <button class="btn-icon" style="width:32px;height:32px;font-size:14px;" onclick="editShoppingItem(${item.id})">✏️</button>
                 <button class="btn-icon" style="width:32px;height:32px;font-size:14px;" onclick="deleteShoppingItem(${item.id})">✕</button>
             </div>
         `).join('');
@@ -832,6 +1061,18 @@ async function loadShopping() {
     } catch (err) {
         console.error('Gagal memuat shopping list:', err.message);
     }
+}
+
+function editShoppingItem(itemId) {
+    const item = currentShoppingItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    document.getElementById('shopping-item-edit-id').value = itemId;
+    document.getElementById('shopping-item-nama').value = item.nama_barang;
+    document.getElementById('shopping-item-jumlah').value = item.jumlah || '';
+    document.getElementById('shopping-item-harga').value = item.estimasi_harga || '';
+    document.getElementById('shopping-item-sheet-title').textContent = 'Edit Barang';
+    openSheet('sheet-add-shopping-item');
 }
 
 async function toggleShoppingItem(itemId) {
@@ -865,14 +1106,18 @@ async function completeShoppingList() {
 document.getElementById('form-add-shopping-item').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall(`/shopping/${currentShoppingListUuid}/items`, {
-            method: 'POST',
-            body: JSON.stringify({
-                nama_barang: document.getElementById('shopping-item-nama').value,
-                jumlah: document.getElementById('shopping-item-jumlah').value || null,
-                estimasi_harga: Number(document.getElementById('shopping-item-harga').value) || 0
-            })
-        });
+        const editId = document.getElementById('shopping-item-edit-id').value;
+        const payload = {
+            nama_barang: document.getElementById('shopping-item-nama').value,
+            jumlah: document.getElementById('shopping-item-jumlah').value || null,
+            estimasi_harga: Number(document.getElementById('shopping-item-harga').value) || 0
+        };
+
+        if (editId) {
+            await apiCall(`/shopping/items/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall(`/shopping/${currentShoppingListUuid}/items`, { method: 'POST', body: JSON.stringify(payload) });
+        }
 
         closeSheet('sheet-add-shopping-item');
         e.target.reset();
@@ -886,10 +1131,13 @@ document.getElementById('form-add-shopping-item').addEventListener('submit', asy
 // ============================================
 // TAGIHAN RUTIN
 // ============================================
+let currentBills = [];
+
 async function loadBills() {
     try {
         const res = await apiCall('/bills');
         const bills = res.data;
+        currentBills = bills;
 
         const listEl = document.getElementById('bills-list');
         if (bills.length === 0) {
@@ -910,11 +1158,36 @@ async function loadBills() {
                     ? `<button class="btn btn-secondary" style="width:auto;padding:8px 14px;font-size:12px;" onclick="openPayBillSheet(${b.id}, ${b.nominal || 0})">Bayar</button>`
                     : `<div class="list-item-value income">${formatRupiah(b.nominal_dibayar)}</div>`
                 }
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editBill(${b.id})">✏️</button>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteBill(${b.id})">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat tagihan:', err.message);
+    }
+}
+
+function editBill(billId) {
+    const bill = currentBills.find(b => b.id === billId);
+    if (!bill) return;
+
+    document.getElementById('bill-edit-id').value = billId;
+    document.getElementById('bill-nama').value = bill.nama_tagihan;
+    document.getElementById('bill-nominal').value = bill.nominal || '';
+    document.getElementById('bill-tanggal').value = bill.tanggal_jatuh_tempo;
+    document.getElementById('bill-reminder').value = bill.pengingat_hari_sebelum;
+    document.getElementById('bill-sheet-title').textContent = 'Edit Tagihan Rutin';
+    openSheet('sheet-add-bill');
+}
+
+async function deleteBill(billId) {
+    if (!confirm('Hapus tagihan rutin ini?')) return;
+    try {
+        await apiCall(`/bills/${billId}`, { method: 'DELETE' });
+        loadBills();
+    } catch (err) {
+        alert(err.message);
     }
 }
 
@@ -930,15 +1203,19 @@ function openPayBillSheet(billId, nominalDefault) {
 document.getElementById('form-add-bill').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/bills', {
-            method: 'POST',
-            body: JSON.stringify({
-                nama_tagihan: document.getElementById('bill-nama').value,
-                nominal: Number(document.getElementById('bill-nominal').value) || null,
-                tanggal_jatuh_tempo: Number(document.getElementById('bill-tanggal').value),
-                pengingat_hari_sebelum: Number(document.getElementById('bill-reminder').value) || 3
-            })
-        });
+        const editId = document.getElementById('bill-edit-id').value;
+        const payload = {
+            nama_tagihan: document.getElementById('bill-nama').value,
+            nominal: Number(document.getElementById('bill-nominal').value) || null,
+            tanggal_jatuh_tempo: Number(document.getElementById('bill-tanggal').value),
+            pengingat_hari_sebelum: Number(document.getElementById('bill-reminder').value) || 3
+        };
+
+        if (editId) {
+            await apiCall(`/bills/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/bills', { method: 'POST', body: JSON.stringify(payload) });
+        }
 
         closeSheet('sheet-add-bill');
         e.target.reset();
@@ -990,11 +1267,14 @@ function switchDebtFilter(filter) {
     loadDebts();
 }
 
+let currentDebts = [];
+
 async function loadDebts() {
     try {
         const endpoint = activeDebtFilter ? `/debts?tipe=${activeDebtFilter}` : '/debts';
         const res = await apiCall(endpoint);
         const debts = res.data;
+        currentDebts = debts;
 
         const listEl = document.getElementById('debts-list');
         if (debts.length === 0) {
@@ -1006,7 +1286,11 @@ async function loadDebts() {
             <div class="card full-width mt-md">
                 <div class="flex-between">
                     <span class="list-item-title">${d.tipe === 'hutang' ? '📤' : '📥'} ${d.nama_pihak}</span>
-                    <span class="priority-badge ${d.status === 'lunas' ? 'rendah' : 'tinggi'}">${d.status === 'lunas' ? 'Lunas' : 'Berjalan'}</span>
+                    <div class="flex gap-sm">
+                        <span class="priority-badge ${d.status === 'lunas' ? 'rendah' : 'tinggi'}">${d.status === 'lunas' ? 'Lunas' : 'Berjalan'}</span>
+                        <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="editDebt('${d.uuid}')">✏️</button>
+                        <button class="btn-icon" style="width:24px;height:24px;font-size:11px;" onclick="deleteDebt('${d.uuid}')">✕</button>
+                    </div>
                 </div>
                 <div class="progress-track"><div class="progress-fill" style="width:${Math.min(d.persentase_terbayar, 100)}%"></div></div>
                 <div class="flex-between mt-md" style="font-size:12px;">
@@ -1020,6 +1304,34 @@ async function loadDebts() {
 
     } catch (err) {
         console.error('Gagal memuat hutang/piutang:', err.message);
+    }
+}
+
+function editDebt(uuid) {
+    const debt = currentDebts.find(d => d.uuid === uuid);
+    if (!debt) return;
+
+    document.getElementById('debt-edit-uuid').value = uuid;
+    document.getElementById('debt-tipe').value = debt.tipe;
+    document.getElementById('debt-tipe').disabled = true;
+    document.getElementById('debt-pihak').value = debt.nama_pihak;
+    document.getElementById('debt-nominal').value = debt.nominal_total;
+    document.getElementById('debt-nominal').disabled = true;
+    document.getElementById('debt-mulai').value = debt.tanggal_mulai;
+    document.getElementById('debt-mulai').disabled = true;
+    document.getElementById('debt-jatuh-tempo').value = debt.jatuh_tempo || '';
+    document.getElementById('debt-catatan').value = debt.catatan || '';
+    document.getElementById('debt-sheet-title').textContent = 'Edit Hutang / Piutang';
+    openSheet('sheet-add-debt');
+}
+
+async function deleteDebt(uuid) {
+    if (!confirm('Hapus catatan hutang/piutang ini beserta riwayat pembayarannya?')) return;
+    try {
+        await apiCall(`/debts/${uuid}`, { method: 'DELETE' });
+        loadDebts();
+    } catch (err) {
+        alert(err.message);
     }
 }
 
@@ -1037,17 +1349,30 @@ function openPayDebtSheet(debtUuid, tipe, namaPihak) {
 document.getElementById('form-add-debt').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/debts', {
-            method: 'POST',
-            body: JSON.stringify({
-                tipe: document.getElementById('debt-tipe').value,
-                nama_pihak: document.getElementById('debt-pihak').value,
-                nominal_total: Number(document.getElementById('debt-nominal').value),
-                tanggal_mulai: document.getElementById('debt-mulai').value,
-                jatuh_tempo: document.getElementById('debt-jatuh-tempo').value || null,
-                catatan: document.getElementById('debt-catatan').value || null
-            })
-        });
+        const editUuid = document.getElementById('debt-edit-uuid').value;
+
+        if (editUuid) {
+            await apiCall(`/debts/${editUuid}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    nama_pihak: document.getElementById('debt-pihak').value,
+                    jatuh_tempo: document.getElementById('debt-jatuh-tempo').value || null,
+                    catatan: document.getElementById('debt-catatan').value || null
+                })
+            });
+        } else {
+            await apiCall('/debts', {
+                method: 'POST',
+                body: JSON.stringify({
+                    tipe: document.getElementById('debt-tipe').value,
+                    nama_pihak: document.getElementById('debt-pihak').value,
+                    nominal_total: Number(document.getElementById('debt-nominal').value),
+                    tanggal_mulai: document.getElementById('debt-mulai').value,
+                    jatuh_tempo: document.getElementById('debt-jatuh-tempo').value || null,
+                    catatan: document.getElementById('debt-catatan').value || null
+                })
+            });
+        }
 
         closeSheet('sheet-add-debt');
         e.target.reset();
@@ -1113,11 +1438,23 @@ async function loadTransfers() {
                     <div class="list-item-subtitle">${t.nama_user} · ${formatTanggal(t.tanggal)}</div>
                 </div>
                 <div class="list-item-value">${formatRupiah(t.nominal)}</div>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteTransfer('${t.uuid}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat transfer:', err.message);
+    }
+}
+
+async function deleteTransfer(uuid) {
+    if (!confirm('Batalkan transfer ini? Saldo kedua rekening akan dikembalikan seperti semula.')) return;
+    try {
+        await apiCall(`/transfers/${uuid}`, { method: 'DELETE' });
+        loadTransfers();
+        loadAccounts();
+    } catch (err) {
+        alert(err.message);
     }
 }
 
@@ -1277,10 +1614,13 @@ function renderExpenseCategoryChart(data) {
 // ============================================
 // STOK RUMAH
 // ============================================
+let currentStockItems = [];
+
 async function loadStock() {
     try {
         const res = await apiCall('/stock');
         const items = res.data;
+        currentStockItems = items;
 
         const listEl = document.getElementById('stock-list');
         if (items.length === 0) {
@@ -1298,6 +1638,8 @@ async function loadStock() {
                 <div class="flex gap-sm">
                     <button class="btn-icon" style="width:32px;height:32px;font-size:16px;" onclick="adjustStock('${i.uuid}', -1)">−</button>
                     <button class="btn-icon" style="width:32px;height:32px;font-size:16px;" onclick="adjustStock('${i.uuid}', 1)">＋</button>
+                    <button class="btn-icon" style="width:32px;height:32px;font-size:14px;" onclick="editStock('${i.uuid}')">✏️</button>
+                    <button class="btn-icon" style="width:32px;height:32px;font-size:14px;" onclick="deleteStock('${i.uuid}')">✕</button>
                 </div>
             </div>
         `).join('');
@@ -1316,18 +1658,47 @@ async function adjustStock(uuid, delta) {
     }
 }
 
+function editStock(uuid) {
+    const item = currentStockItems.find(i => i.uuid === uuid);
+    if (!item) return;
+
+    document.getElementById('stock-edit-uuid').value = uuid;
+    document.getElementById('stock-nama').value = item.nama_barang;
+    document.getElementById('stock-jumlah').value = item.jumlah_saat_ini;
+    document.getElementById('stock-jumlah').disabled = true;
+    document.getElementById('stock-satuan').value = item.satuan || '';
+    document.getElementById('stock-ambang').value = item.ambang_batas_minimum;
+    document.getElementById('stock-sheet-title').textContent = 'Edit Stok Barang';
+    openSheet('sheet-add-stock');
+}
+
+async function deleteStock(uuid) {
+    if (!confirm('Hapus barang stok ini?')) return;
+    try {
+        await apiCall(`/stock/${uuid}`, { method: 'DELETE' });
+        loadStock();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
 document.getElementById('form-add-stock').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/stock', {
-            method: 'POST',
-            body: JSON.stringify({
-                nama_barang: document.getElementById('stock-nama').value,
-                jumlah_saat_ini: Number(document.getElementById('stock-jumlah').value) || 0,
-                satuan: document.getElementById('stock-satuan').value || null,
-                ambang_batas_minimum: Number(document.getElementById('stock-ambang').value) || 0
-            })
-        });
+        const editUuid = document.getElementById('stock-edit-uuid').value;
+        const payload = {
+            nama_barang: document.getElementById('stock-nama').value,
+            jumlah_saat_ini: Number(document.getElementById('stock-jumlah').value) || 0,
+            satuan: document.getElementById('stock-satuan').value || null,
+            ambang_batas_minimum: Number(document.getElementById('stock-ambang').value) || 0
+        };
+
+        if (editUuid) {
+            await apiCall(`/stock/${editUuid}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/stock', { method: 'POST', body: JSON.stringify(payload) });
+        }
+
         closeSheet('sheet-add-stock');
         e.target.reset();
         loadStock();
@@ -1339,10 +1710,13 @@ document.getElementById('form-add-stock').addEventListener('submit', async (e) =
 // ============================================
 // INVENTARIS RUMAH
 // ============================================
+let currentInventoryItems = [];
+
 async function loadInventory() {
     try {
         const res = await apiCall('/inventory');
         const items = res.data;
+        currentInventoryItems = items;
 
         const listEl = document.getElementById('inventory-list');
         if (items.length === 0) {
@@ -1358,6 +1732,8 @@ async function loadInventory() {
                     <div class="list-item-subtitle">${i.lokasi || '-'} ${i.harga_beli ? '· ' + formatRupiah(i.harga_beli) : ''}</div>
                 </div>
                 ${i.garansi_sampai ? `<span class="priority-badge ${i.garansi_masih_berlaku ? 'rendah' : 'tinggi'}">${i.garansi_masih_berlaku ? 'Garansi aktif' : 'Garansi habis'}</span>` : ''}
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editInventory('${i.uuid}')">✏️</button>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteInventory('${i.uuid}')">✕</button>
             </div>
         `).join('');
 
@@ -1366,19 +1742,51 @@ async function loadInventory() {
     }
 }
 
+function editInventory(uuid) {
+    const item = currentInventoryItems.find(i => i.uuid === uuid);
+    if (!item) return;
+
+    document.getElementById('inv-edit-uuid').value = uuid;
+    document.getElementById('inv-nama').value = item.nama_barang;
+    document.getElementById('inv-lokasi').value = item.lokasi || '';
+    document.getElementById('inv-harga').value = item.harga_beli || '';
+    document.getElementById('inv-harga').disabled = true;
+    document.getElementById('inv-tanggal-beli').value = item.tanggal_beli || '';
+    document.getElementById('inv-tanggal-beli').disabled = true;
+    document.getElementById('inv-garansi').value = item.garansi_sampai || '';
+    document.getElementById('inv-garansi').disabled = true;
+    document.getElementById('inventory-sheet-title').textContent = 'Edit Barang Inventaris';
+    openSheet('sheet-add-inventory');
+}
+
+async function deleteInventory(uuid) {
+    if (!confirm('Hapus barang inventaris ini?')) return;
+    try {
+        await apiCall(`/inventory/${uuid}`, { method: 'DELETE' });
+        loadInventory();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
 document.getElementById('form-add-inventory').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/inventory', {
-            method: 'POST',
-            body: JSON.stringify({
-                nama_barang: document.getElementById('inv-nama').value,
-                lokasi: document.getElementById('inv-lokasi').value || null,
-                harga_beli: Number(document.getElementById('inv-harga').value) || null,
-                tanggal_beli: document.getElementById('inv-tanggal-beli').value || null,
-                garansi_sampai: document.getElementById('inv-garansi').value || null
-            })
-        });
+        const editUuid = document.getElementById('inv-edit-uuid').value;
+        const payload = {
+            nama_barang: document.getElementById('inv-nama').value,
+            lokasi: document.getElementById('inv-lokasi').value || null,
+            harga_beli: Number(document.getElementById('inv-harga').value) || null,
+            tanggal_beli: document.getElementById('inv-tanggal-beli').value || null,
+            garansi_sampai: document.getElementById('inv-garansi').value || null
+        };
+
+        if (editUuid) {
+            await apiCall(`/inventory/${editUuid}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/inventory', { method: 'POST', body: JSON.stringify(payload) });
+        }
+
         closeSheet('sheet-add-inventory');
         e.target.reset();
         loadInventory();
@@ -1390,10 +1798,13 @@ document.getElementById('form-add-inventory').addEventListener('submit', async (
 // ============================================
 // JADWAL SERVIS
 // ============================================
+let currentServices = [];
+
 async function loadServices() {
     try {
         const res = await apiCall('/services');
         const items = res.data;
+        currentServices = items;
 
         const listEl = document.getElementById('services-list');
         if (items.length === 0) {
@@ -1409,6 +1820,8 @@ async function loadServices() {
                     <div class="list-item-subtitle">${i.tanggal_servis_berikutnya ? 'Berikutnya: ' + formatTanggal(i.tanggal_servis_berikutnya) : 'Belum dijadwalkan'}</div>
                 </div>
                 <button class="btn btn-secondary" style="width:auto;padding:8px 12px;font-size:12px;" onclick="markServiceDone('${i.uuid}')">Selesai</button>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editService('${i.uuid}')">✏️</button>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteService('${i.uuid}')">✕</button>
             </div>
         `).join('');
 
@@ -1426,18 +1839,46 @@ async function markServiceDone(uuid) {
     }
 }
 
+function editService(uuid) {
+    const item = currentServices.find(i => i.uuid === uuid);
+    if (!item) return;
+
+    document.getElementById('service-edit-uuid').value = uuid;
+    document.getElementById('service-nama').value = item.nama_item;
+    document.getElementById('service-jenis').value = item.jenis_servis || '';
+    document.getElementById('service-terakhir').value = item.tanggal_servis_terakhir || '';
+    document.getElementById('service-interval').value = item.interval_hari || '';
+    document.getElementById('service-sheet-title').textContent = 'Edit Jadwal Servis';
+    openSheet('sheet-add-service');
+}
+
+async function deleteService(uuid) {
+    if (!confirm('Hapus jadwal servis ini?')) return;
+    try {
+        await apiCall(`/services/${uuid}`, { method: 'DELETE' });
+        loadServices();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
 document.getElementById('form-add-service').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/services', {
-            method: 'POST',
-            body: JSON.stringify({
-                nama_item: document.getElementById('service-nama').value,
-                jenis_servis: document.getElementById('service-jenis').value || null,
-                tanggal_servis_terakhir: document.getElementById('service-terakhir').value || null,
-                interval_hari: Number(document.getElementById('service-interval').value) || null
-            })
-        });
+        const editUuid = document.getElementById('service-edit-uuid').value;
+        const payload = {
+            nama_item: document.getElementById('service-nama').value,
+            jenis_servis: document.getElementById('service-jenis').value || null,
+            tanggal_servis_terakhir: document.getElementById('service-terakhir').value || null,
+            interval_hari: Number(document.getElementById('service-interval').value) || null
+        };
+
+        if (editUuid) {
+            await apiCall(`/services/${editUuid}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/services', { method: 'POST', body: JSON.stringify(payload) });
+        }
+
         closeSheet('sheet-add-service');
         e.target.reset();
         loadServices();
@@ -1451,10 +1892,13 @@ document.getElementById('form-add-service').addEventListener('submit', async (e)
 // ============================================
 const JENIS_DOKUMEN_LABEL = { ktp: 'KTP', kk: 'KK', npwp: 'NPWP', bpjs: 'BPJS', sim: 'SIM', stnk: 'STNK', bpkb: 'BPKB', sertifikat: 'Sertifikat', polis: 'Polis Asuransi', lainnya: 'Lainnya' };
 
+let currentDocuments = [];
+
 async function loadDocuments() {
     try {
         const res = await apiCall('/documents');
         const items = res.data;
+        currentDocuments = items;
 
         const listEl = document.getElementById('documents-list');
         if (items.length === 0) {
@@ -1470,6 +1914,8 @@ async function loadDocuments() {
                     <div class="list-item-subtitle">${JENIS_DOKUMEN_LABEL[i.jenis_dokumen] || i.jenis_dokumen}${i.berlaku_sampai ? ' · Berlaku sampai ' + formatTanggal(i.berlaku_sampai) : ''}</div>
                 </div>
                 ${i.sudah_kedaluwarsa ? '<span class="priority-badge tinggi">Kedaluwarsa</span>' : i.akan_kedaluwarsa ? '<span class="priority-badge sedang">Segera habis</span>' : ''}
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editDocument('${i.uuid}')">✏️</button>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteDocument('${i.uuid}')">✕</button>
             </div>
         `).join('');
 
@@ -1478,18 +1924,47 @@ async function loadDocuments() {
     }
 }
 
+function editDocument(uuid) {
+    const doc = currentDocuments.find(i => i.uuid === uuid);
+    if (!doc) return;
+
+    document.getElementById('doc-edit-uuid').value = uuid;
+    document.getElementById('doc-jenis').value = doc.jenis_dokumen;
+    document.getElementById('doc-jenis').disabled = true;
+    document.getElementById('doc-nama').value = doc.nama_dokumen;
+    document.getElementById('doc-nomor').value = doc.nomor_dokumen || '';
+    document.getElementById('doc-berlaku').value = doc.berlaku_sampai || '';
+    document.getElementById('document-sheet-title').textContent = 'Edit Dokumen';
+    openSheet('sheet-add-document');
+}
+
+async function deleteDocument(uuid) {
+    if (!confirm('Hapus dokumen ini?')) return;
+    try {
+        await apiCall(`/documents/${uuid}`, { method: 'DELETE' });
+        loadDocuments();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
 document.getElementById('form-add-document').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/documents', {
-            method: 'POST',
-            body: JSON.stringify({
-                jenis_dokumen: document.getElementById('doc-jenis').value,
-                nama_dokumen: document.getElementById('doc-nama').value,
-                nomor_dokumen: document.getElementById('doc-nomor').value || null,
-                berlaku_sampai: document.getElementById('doc-berlaku').value || null
-            })
-        });
+        const editUuid = document.getElementById('doc-edit-uuid').value;
+        const payload = {
+            jenis_dokumen: document.getElementById('doc-jenis').value,
+            nama_dokumen: document.getElementById('doc-nama').value,
+            nomor_dokumen: document.getElementById('doc-nomor').value || null,
+            berlaku_sampai: document.getElementById('doc-berlaku').value || null
+        };
+
+        if (editUuid) {
+            await apiCall(`/documents/${editUuid}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/documents', { method: 'POST', body: JSON.stringify(payload) });
+        }
+
         closeSheet('sheet-add-document');
         e.target.reset();
         loadDocuments();
@@ -1501,10 +1976,13 @@ document.getElementById('form-add-document').addEventListener('submit', async (e
 // ============================================
 // CATATAN BEBAS
 // ============================================
+let currentNotes = [];
+
 async function loadNotes() {
     try {
         const res = await apiCall('/notes');
         const notes = res.data;
+        currentNotes = notes;
 
         const listEl = document.getElementById('notes-list');
         if (notes.length === 0) {
@@ -1516,7 +1994,10 @@ async function loadNotes() {
             <div class="card full-width mt-md">
                 <div class="flex-between">
                     <span class="list-item-title">${n.judul}</span>
-                    <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteNote('${n.uuid}')">✕</button>
+                    <div class="flex gap-sm">
+                        <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="editNote('${n.uuid}')">✏️</button>
+                        <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteNote('${n.uuid}')">✕</button>
+                    </div>
                 </div>
                 ${n.isi ? `<p class="text-muted mt-md" style="font-size:13px;">${n.isi}</p>` : ''}
                 <div class="text-muted mt-md" style="font-size:11px;">oleh ${n.nama_pembuat}</div>
@@ -1526,6 +2007,17 @@ async function loadNotes() {
     } catch (err) {
         console.error('Gagal memuat catatan:', err.message);
     }
+}
+
+function editNote(uuid) {
+    const note = currentNotes.find(n => n.uuid === uuid);
+    if (!note) return;
+
+    document.getElementById('note-edit-uuid').value = uuid;
+    document.getElementById('note-judul').value = note.judul;
+    document.getElementById('note-isi').value = note.isi || '';
+    document.getElementById('note-sheet-title').textContent = 'Edit Catatan';
+    openSheet('sheet-add-note');
 }
 
 async function deleteNote(uuid) {
@@ -1541,13 +2033,18 @@ async function deleteNote(uuid) {
 document.getElementById('form-add-note').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        await apiCall('/notes', {
-            method: 'POST',
-            body: JSON.stringify({
-                judul: document.getElementById('note-judul').value,
-                isi: document.getElementById('note-isi').value || null
-            })
-        });
+        const editUuid = document.getElementById('note-edit-uuid').value;
+        const payload = {
+            judul: document.getElementById('note-judul').value,
+            isi: document.getElementById('note-isi').value || null
+        };
+
+        if (editUuid) {
+            await apiCall(`/notes/${editUuid}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiCall('/notes', { method: 'POST', body: JSON.stringify(payload) });
+        }
+
         closeSheet('sheet-add-note');
         e.target.reset();
         loadNotes();

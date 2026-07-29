@@ -564,8 +564,9 @@
     <div class="sheet-overlay" id="sheet-add-account" onclick="closeSheetOnOverlay(event, 'sheet-add-account')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Rekening</h3>
+            <h3 class="sheet-title" id="account-sheet-title">Tambah Rekening</h3>
             <form id="form-add-account">
+                <input type="hidden" id="account-edit-uuid">
                 <div class="form-group">
                     <label class="form-label">Nama Rekening</label>
                     <input type="text" class="form-input" id="account-nama" placeholder="Contoh: BCA Suami" required>
@@ -593,8 +594,9 @@
     <div class="sheet-overlay" id="sheet-add-expense" onclick="closeSheetOnOverlay(event, 'sheet-add-expense')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Catat Pengeluaran</h3>
+            <h3 class="sheet-title" id="expense-sheet-title">Catat Pengeluaran</h3>
             <form id="form-add-expense">
+                <input type="hidden" id="expense-edit-uuid">
                 <div class="form-group">
                     <label class="form-label">Nominal</label>
                     <input type="number" class="form-input" id="expense-nominal" placeholder="0" required>
@@ -638,8 +640,9 @@
     <div class="sheet-overlay" id="sheet-add-income" onclick="closeSheetOnOverlay(event, 'sheet-add-income')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Catat Pemasukan</h3>
+            <h3 class="sheet-title" id="income-sheet-title">Catat Pemasukan</h3>
             <form id="form-add-income">
+                <input type="hidden" id="income-edit-uuid">
                 <div class="form-group">
                     <label class="form-label">Nominal</label>
                     <input type="number" class="form-input" id="income-nominal" placeholder="0" required>
@@ -670,8 +673,9 @@
     <div class="sheet-overlay" id="sheet-add-budget" onclick="closeSheetOnOverlay(event, 'sheet-add-budget')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Atur Anggaran</h3>
+            <h3 class="sheet-title" id="budget-sheet-title">Atur Anggaran</h3>
             <form id="form-add-budget">
+                <input type="hidden" id="budget-edit-mode">
                 <div class="form-group">
                     <label class="form-label">Kategori</label>
                     <select class="form-select" id="budget-kategori" required>
@@ -698,8 +702,9 @@
     <div class="sheet-overlay" id="sheet-add-savings" onclick="closeSheetOnOverlay(event, 'sheet-add-savings')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Buat Target Tabungan</h3>
+            <h3 class="sheet-title" id="savings-sheet-title">Buat Target Tabungan</h3>
             <form id="form-add-savings">
+                <input type="hidden" id="savings-edit-uuid">
                 <div class="form-group">
                     <label class="form-label">Nama Target</label>
                     <input type="text" class="form-input" id="savings-nama" placeholder="Contoh: Dana Darurat, Liburan" required>
@@ -747,8 +752,9 @@
     <div class="sheet-overlay" id="sheet-add-todo" onclick="closeSheetOnOverlay(event, 'sheet-add-todo')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Tugas</h3>
+            <h3 class="sheet-title" id="todo-sheet-title">Tambah Tugas</h3>
             <form id="form-add-todo">
+                <input type="hidden" id="todo-edit-uuid">
                 <div class="form-group">
                     <label class="form-label">Judul Tugas</label>
                     <input type="text" class="form-input" id="todo-judul" placeholder="Contoh: Bayar listrik" required>
@@ -780,8 +786,9 @@
     <div class="sheet-overlay" id="sheet-add-calendar" onclick="closeSheetOnOverlay(event, 'sheet-add-calendar')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Jadwal</h3>
+            <h3 class="sheet-title" id="calendar-sheet-title">Tambah Jadwal</h3>
             <form id="form-add-calendar">
+                <input type="hidden" id="calendar-edit-uuid">
                 <div class="form-group">
                     <label class="form-label">Judul</label>
                     <input type="text" class="form-input" id="calendar-judul" placeholder="Contoh: Janji dokter" required>
@@ -816,8 +823,9 @@
     <div class="sheet-overlay" id="sheet-add-shopping-item" onclick="closeSheetOnOverlay(event, 'sheet-add-shopping-item')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Barang</h3>
+            <h3 class="sheet-title" id="shopping-item-sheet-title">Tambah Barang</h3>
             <form id="form-add-shopping-item">
+                <input type="hidden" id="shopping-item-edit-id">
                 <div class="form-group">
                     <label class="form-label">Nama Barang</label>
                     <input type="text" class="form-input" id="shopping-item-nama" placeholder="Contoh: Beras 5kg" required>
@@ -839,8 +847,9 @@
     <div class="sheet-overlay" id="sheet-add-bill" onclick="closeSheetOnOverlay(event, 'sheet-add-bill')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Tagihan Rutin</h3>
+            <h3 class="sheet-title" id="bill-sheet-title">Tambah Tagihan Rutin</h3>
             <form id="form-add-bill">
+                <input type="hidden" id="bill-edit-id">
                 <div class="form-group">
                     <label class="form-label">Nama Tagihan</label>
                     <input type="text" class="form-input" id="bill-nama" placeholder="Contoh: PLN, Netflix, Internet" required>
@@ -892,8 +901,9 @@
     <div class="sheet-overlay" id="sheet-add-debt" onclick="closeSheetOnOverlay(event, 'sheet-add-debt')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Hutang / Piutang</h3>
+            <h3 class="sheet-title" id="debt-sheet-title">Tambah Hutang / Piutang</h3>
             <form id="form-add-debt">
+                <input type="hidden" id="debt-edit-uuid">
                 <div class="form-group">
                     <label class="form-label">Tipe</label>
                     <select class="form-select" id="debt-tipe" required>
@@ -987,8 +997,9 @@
     <div class="sheet-overlay" id="sheet-add-stock" onclick="closeSheetOnOverlay(event, 'sheet-add-stock')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Stok Barang</h3>
+            <h3 class="sheet-title" id="stock-sheet-title">Tambah Stok Barang</h3>
             <form id="form-add-stock">
+                <input type="hidden" id="stock-edit-uuid">
                 <div class="form-group"><label class="form-label">Nama Barang</label><input type="text" class="form-input" id="stock-nama" placeholder="Contoh: Beras" required></div>
                 <div class="form-group"><label class="form-label">Jumlah Saat Ini</label><input type="number" class="form-input" id="stock-jumlah" placeholder="0" required></div>
                 <div class="form-group"><label class="form-label">Satuan</label><input type="text" class="form-input" id="stock-satuan" placeholder="Contoh: kg, liter, pcs"></div>
@@ -1002,8 +1013,9 @@
     <div class="sheet-overlay" id="sheet-add-inventory" onclick="closeSheetOnOverlay(event, 'sheet-add-inventory')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Barang Inventaris</h3>
+            <h3 class="sheet-title" id="inventory-sheet-title">Tambah Barang Inventaris</h3>
             <form id="form-add-inventory">
+                <input type="hidden" id="inv-edit-uuid">
                 <div class="form-group"><label class="form-label">Nama Barang</label><input type="text" class="form-input" id="inv-nama" placeholder="Contoh: TV, Kulkas" required></div>
                 <div class="form-group"><label class="form-label">Lokasi</label><input type="text" class="form-input" id="inv-lokasi" placeholder="Contoh: Ruang Tamu"></div>
                 <div class="form-group"><label class="form-label">Harga Beli</label><input type="number" class="form-input" id="inv-harga" placeholder="0"></div>
@@ -1018,8 +1030,9 @@
     <div class="sheet-overlay" id="sheet-add-service" onclick="closeSheetOnOverlay(event, 'sheet-add-service')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Jadwal Servis</h3>
+            <h3 class="sheet-title" id="service-sheet-title">Tambah Jadwal Servis</h3>
             <form id="form-add-service">
+                <input type="hidden" id="service-edit-uuid">
                 <div class="form-group"><label class="form-label">Nama Item</label><input type="text" class="form-input" id="service-nama" placeholder="Contoh: AC, Mobil" required></div>
                 <div class="form-group"><label class="form-label">Jenis Servis</label><input type="text" class="form-input" id="service-jenis" placeholder="Contoh: Ganti oli, Cuci AC"></div>
                 <div class="form-group"><label class="form-label">Servis Terakhir</label><input type="date" class="form-input" id="service-terakhir"></div>
@@ -1033,8 +1046,9 @@
     <div class="sheet-overlay" id="sheet-add-document" onclick="closeSheetOnOverlay(event, 'sheet-add-document')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Dokumen</h3>
+            <h3 class="sheet-title" id="document-sheet-title">Tambah Dokumen</h3>
             <form id="form-add-document">
+                <input type="hidden" id="doc-edit-uuid">
                 <div class="form-group">
                     <label class="form-label">Jenis Dokumen</label>
                     <select class="form-select" id="doc-jenis" required>
@@ -1056,8 +1070,9 @@
     <div class="sheet-overlay" id="sheet-add-note" onclick="closeSheetOnOverlay(event, 'sheet-add-note')">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-handle"></div>
-            <h3 class="sheet-title">Tambah Catatan</h3>
+            <h3 class="sheet-title" id="note-sheet-title">Tambah Catatan</h3>
             <form id="form-add-note">
+                <input type="hidden" id="note-edit-uuid">
                 <div class="form-group"><label class="form-label">Judul</label><input type="text" class="form-input" id="note-judul" placeholder="Contoh: Ide liburan" required></div>
                 <div class="form-group"><label class="form-label">Isi Catatan</label><textarea class="form-textarea" id="note-isi" rows="5" placeholder="Tulis catatan di sini..."></textarea></div>
                 <button type="submit" class="btn btn-primary btn-block">Simpan</button>

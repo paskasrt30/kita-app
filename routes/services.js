@@ -89,6 +89,41 @@ router.put('/:uuid/done', async (req, res) => {
     }
 });
 
+// ==================== EDIT JADWAL SERVIS ====================
+router.put('/:uuid', async (req, res) => {
+    try {
+        const item = await db.prepare('SELECT * FROM service_schedules WHERE uuid = ? AND couple_id = ?')
+            .get(req.params.uuid, req.user.couple_id);
+
+        if (!item) {
+            return res.status(404).json({ status: 'error', message: 'Jadwal servis tidak ditemukan' });
+        }
+
+        const { nama_item, jenis_servis, tanggal_servis_terakhir, interval_hari, catatan } = req.body;
+
+        const tanggalTerakhirBaru = tanggal_servis_terakhir !== undefined ? tanggal_servis_terakhir : item.tanggal_servis_terakhir;
+        const intervalBaru = interval_hari !== undefined ? interval_hari : item.interval_hari;
+        const tanggalBerikutnya = tanggalTerakhirBaru && intervalBaru ? addDays(tanggalTerakhirBaru, Number(intervalBaru)) : item.tanggal_servis_berikutnya;
+
+        await db.prepare(`
+            UPDATE service_schedules SET
+                nama_item = COALESCE(?, nama_item),
+                jenis_servis = COALESCE(?, jenis_servis),
+                tanggal_servis_terakhir = ?,
+                interval_hari = ?,
+                tanggal_servis_berikutnya = ?,
+                catatan = COALESCE(?, catatan)
+            WHERE uuid = ?
+        `).run(nama_item, jenis_servis, tanggalTerakhirBaru, intervalBaru, tanggalBerikutnya, catatan, req.params.uuid);
+
+        const updated = await db.prepare('SELECT * FROM service_schedules WHERE uuid = ?').get(req.params.uuid);
+        res.json({ status: 'success', message: 'Jadwal servis berhasil diperbarui', data: updated });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ status: 'error', message: 'Terjadi kesalahan pada server' });
+    }
+});
+
 // ==================== HAPUS JADWAL SERVIS ====================
 router.delete('/:uuid', async (req, res) => {
     try {
