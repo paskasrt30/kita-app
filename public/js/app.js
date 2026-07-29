@@ -410,11 +410,25 @@ async function loadTransactions() {
                 <div class="list-item-value ${activeTransactionTab === 'expense' ? 'expense' : 'income'}">
                     ${activeTransactionTab === 'expense' ? '-' : '+'}${formatRupiah(item.nominal)}
                 </div>
+                <button class="btn-icon" style="width:28px;height:28px;font-size:12px;" onclick="deleteTransaction('${item.uuid}', '${activeTransactionTab}')">✕</button>
             </div>
         `).join('');
 
     } catch (err) {
         console.error('Gagal memuat transaksi:', err.message);
+    }
+}
+
+async function deleteTransaction(uuid, tipe) {
+    if (!confirm('Hapus transaksi ini?')) return;
+    try {
+        const endpoint = tipe === 'expense' ? '/expenses' : '/income';
+        await apiCall(`${endpoint}/${uuid}`, { method: 'DELETE' });
+        loadTransactions();
+        loadDashboard();
+        loadAccounts();
+    } catch (err) {
+        alert(err.message);
     }
 }
 
