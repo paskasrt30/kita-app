@@ -259,6 +259,40 @@ a { text-decoration: none; color: inherit; }
 }
 
 /* ============================================
+   KALKULATOR NOMINAL
+   ============================================ */
+.calculator-display {
+    background: var(--color-bg-alt);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg) var(--space-md);
+    margin: var(--space-md) 0;
+    text-align: right;
+    font-size: 32px;
+    font-weight: 700;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.calculator-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-sm);
+}
+
+.calc-btn {
+    height: 56px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-alt);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.calc-btn-op { background: var(--color-partner-a-light); color: white; }
+.calc-btn-equals { background: var(--gradient-couple); color: white; }
+.calc-btn-zero { grid-column: span 3; }
+
+/* ============================================
    KALENDER (tampilan grid bulanan)
    ============================================ */
 .calendar-nav {
@@ -732,6 +766,10 @@ a { text-decoration: none; color: inherit; }
     align-items: flex-end;
     justify-content: center;
 }
+
+/* Kalkulator dibuka DI ATAS sheet form yang sedang aktif (mis. tambah pengeluaran),
+   jadi harus selalu di lapisan paling atas terlepas dari urutannya di HTML. */
+#sheet-calculator { z-index: 300; }
 
 .sheet-overlay.show { display: flex; }
 

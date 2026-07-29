@@ -171,6 +171,119 @@ function openDetailSheet(title, rows, onEdit, onDelete) {
 }
 
 // ============================================
+// KALKULATOR NOMINAL
+// ============================================
+let calcTargetInputId = null;
+let calcDisplayValue = '0';
+let calcPreviousValue = null;
+let calcPendingOperator = null;
+let calcResetOnNextDigit = false;
+
+function openCalculatorSheet(inputId) {
+    calcTargetInputId = inputId;
+    const currentVal = document.getElementById(inputId).value;
+    calcDisplayValue = currentVal && Number(currentVal) !== 0 ? String(Number(currentVal)) : '0';
+    calcPreviousValue = null;
+    calcPendingOperator = null;
+    calcResetOnNextDigit = false;
+    updateCalcDisplay();
+    openSheet('sheet-calculator');
+}
+
+function formatCalcDisplay(val) {
+    if (val === '' || val === '-' || val === 'Error') return val || '0';
+    const parts = val.split('.');
+    const intPart = Number(parts[0]).toLocaleString('id-ID');
+    return parts.length > 1 ? `${intPart},${parts[1]}` : intPart;
+}
+
+function updateCalcDisplay() {
+    document.getElementById('calculator-display').textContent = formatCalcDisplay(calcDisplayValue);
+}
+
+function calcDigit(d) {
+    if (calcDisplayValue === 'Error' || calcResetOnNextDigit) {
+        calcDisplayValue = '0';
+        calcResetOnNextDigit = false;
+    }
+    if (d === '.') {
+        if (calcDisplayValue.includes('.')) return;
+        calcDisplayValue += '.';
+    } else if (calcDisplayValue === '0') {
+        calcDisplayValue = d;
+    } else {
+        calcDisplayValue += d;
+    }
+    updateCalcDisplay();
+}
+
+function calcCompute(a, b, op) {
+    switch (op) {
+        case '+': return a + b;
+        case '-': return a - b;
+        case '×': return a * b;
+        case '÷': return b === 0 ? NaN : a / b;
+        default: return b;
+    }
+}
+
+// Hindari sisa desimal aneh dari floating point (mis. 0.1 + 0.2) dengan
+// membatasi hasil ke maksimal 2 angka di belakang koma.
+function trimCalcNumber(n) {
+    if (!isFinite(n)) return 'Error';
+    return String(Math.round(n * 100) / 100);
+}
+
+function calcOperator(op) {
+    if (calcDisplayValue === 'Error') return;
+    const current = parseFloat(calcDisplayValue) || 0;
+
+    if (calcPendingOperator && !calcResetOnNextDigit) {
+        calcDisplayValue = trimCalcNumber(calcCompute(calcPreviousValue, current, calcPendingOperator));
+        calcPreviousValue = parseFloat(calcDisplayValue);
+    } else {
+        calcPreviousValue = current;
+    }
+
+    calcPendingOperator = op;
+    calcResetOnNextDigit = true;
+    updateCalcDisplay();
+}
+
+function calcEquals() {
+    if (calcPendingOperator === null || calcDisplayValue === 'Error') return;
+    const current = parseFloat(calcDisplayValue) || 0;
+    calcDisplayValue = trimCalcNumber(calcCompute(calcPreviousValue, current, calcPendingOperator));
+    calcPreviousValue = null;
+    calcPendingOperator = null;
+    calcResetOnNextDigit = true;
+    updateCalcDisplay();
+}
+
+function calcClear() {
+    calcDisplayValue = '0';
+    calcPreviousValue = null;
+    calcPendingOperator = null;
+    calcResetOnNextDigit = false;
+    updateCalcDisplay();
+}
+
+function calcBackspace() {
+    if (calcResetOnNextDigit || calcDisplayValue === 'Error') return;
+    calcDisplayValue = calcDisplayValue.length > 1 ? calcDisplayValue.slice(0, -1) : '0';
+    updateCalcDisplay();
+}
+
+function calcConfirm() {
+    if (calcPendingOperator !== null) calcEquals();
+    if (calcDisplayValue === 'Error') return;
+
+    const result = parseFloat(calcDisplayValue) || 0;
+    document.getElementById(calcTargetInputId).value = result;
+    closeSheet('sheet-calculator');
+}
+
+// ============================================
 // AUTH: LOGIN
 // ============================================
 document.getElementById('form-login').addEventListener('submit', async (e) => {
