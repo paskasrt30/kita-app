@@ -486,6 +486,13 @@ router.get('/me', authMiddleware, async (req, res) => {
 
             const couple = await db.prepare('SELECT kode_undangan FROM couples WHERE id = ?').get(user.couple_id);
             kodeUndangan = couple ? couple.kode_undangan : null;
+
+            // Rumah tangga lama (dibuat sebelum kolom kode_undangan ada) belum
+            // punya kode -> buatkan sekarang supaya tetap bisa dibagikan.
+            if (!kodeUndangan) {
+                kodeUndangan = await buatKodeUndanganUnik();
+                await db.prepare('UPDATE couples SET kode_undangan = ? WHERE id = ?').run(kodeUndangan, user.couple_id);
+            }
         }
 
         res.json({
