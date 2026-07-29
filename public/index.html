@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#5B4B8A">
 <link rel="manifest" href="/manifest.json">
 <link rel="stylesheet" href="/css/style.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -407,6 +407,29 @@
                 <canvas id="chart-expense-category" height="220"></canvas>
             </div>
             <div id="expense-breakdown-list" class="mt-md"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-header"><h2>Analisis Keuangan</h2></div>
+            <div class="card-grid">
+                <div class="card">
+                    <div class="text-muted" style="font-size:12px;">Rasio Cicilan / Pemasukan</div>
+                    <div class="list-item-title" style="font-size:16px; margin-top:4px;" id="analysis-rasio-cicilan">-</div>
+                </div>
+                <div class="card">
+                    <div class="text-muted" style="font-size:12px;">Tren Pengeluaran (3 Bulan)</div>
+                    <div class="list-item-title" style="font-size:16px; margin-top:4px;" id="analysis-tren">-</div>
+                </div>
+                <div class="card">
+                    <div class="text-muted" style="font-size:12px;">Rata-rata Pengeluaran / Bulan</div>
+                    <div class="list-item-title" style="font-size:16px; margin-top:4px;" id="analysis-rata-rata">-</div>
+                </div>
+                <div class="card">
+                    <div class="text-muted" style="font-size:12px;">Estimasi Saldo Akhir Bulan</div>
+                    <div class="list-item-title" style="font-size:16px; margin-top:4px;" id="analysis-estimasi-saldo">-</div>
+                    <div class="text-muted mt-md" style="font-size:11px;" id="analysis-hari-tersisa"></div>
+                </div>
+            </div>
         </div>
     </div>
 

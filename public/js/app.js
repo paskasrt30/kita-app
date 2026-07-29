@@ -1714,10 +1714,11 @@ let expenseCategoryChartInstance = null;
 
 async function loadReports() {
     try {
-        const [overviewRes, cashflowRes, breakdownRes] = await Promise.all([
+        const [overviewRes, cashflowRes, breakdownRes, analysisRes] = await Promise.all([
             apiCall('/reports/overview'),
             apiCall('/reports/cashflow?months=6'),
-            apiCall('/reports/expense-breakdown')
+            apiCall('/reports/expense-breakdown'),
+            apiCall('/reports/analysis')
         ]);
 
         const overview = overviewRes.data;
@@ -1727,8 +1728,14 @@ async function loadReports() {
         renderChangeIndicator('report-pemasukan-change', overview.perubahan_pemasukan_persen, true);
         renderChangeIndicator('report-pengeluaran-change', overview.perubahan_pengeluaran_persen, false);
 
-        renderCashflowChart(cashflowRes.data);
-        renderExpenseCategoryChart(breakdownRes.data);
+        // Chart.js dimuat dari CDN eksternal — kalau gagal dimuat/render, jangan sampai
+        // bagian laporan lain (breakdown, analisis) ikut kosong karena exception di sini.
+        try {
+            renderCashflowChart(cashflowRes.data);
+            renderExpenseCategoryChart(breakdownRes.data);
+        } catch (chartErr) {
+            console.error('Gagal render chart:', chartErr.message);
+        }
 
         const breakdownListEl = document.getElementById('expense-breakdown-list');
         if (breakdownRes.data.length === 0) {
@@ -1744,6 +1751,14 @@ async function loadReports() {
                 </div>
             `).join('');
         }
+
+        const analysis = analysisRes.data;
+        const TREN_LABEL = { naik: '↑ Naik', turun: '↓ Turun', stabil: '→ Stabil' };
+        document.getElementById('analysis-rasio-cicilan').textContent = `${analysis.rasio_cicilan_persen}%`;
+        document.getElementById('analysis-tren').textContent = TREN_LABEL[analysis.tren_pengeluaran] || analysis.tren_pengeluaran;
+        document.getElementById('analysis-rata-rata').textContent = formatRupiah(analysis.rata_rata_pengeluaran_bulanan);
+        document.getElementById('analysis-estimasi-saldo').textContent = formatRupiah(analysis.estimasi_saldo_akhir_bulan);
+        document.getElementById('analysis-hari-tersisa').textContent = `${analysis.hari_tersisa_bulan_ini} hari tersisa bulan ini`;
 
     } catch (err) {
         console.error('Gagal memuat laporan:', err.message);
