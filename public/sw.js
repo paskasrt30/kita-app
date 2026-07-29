@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kita-app-v1';
+const CACHE_NAME = 'kita-app-v2';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -27,7 +27,7 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
-// Fetch: network-first untuk API, cache-first untuk aset statis
+// Fetch: network-first untuk API maupun aset statis (cache cuma fallback offline)
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
@@ -42,9 +42,16 @@ self.addEventListener('fetch', (event) => {
             )
         );
     } else {
-        // Cache-first untuk aset statis
+        // Network-first untuk aset statis, supaya update kode langsung terpakai
+        // begitu online, cache cuma jadi fallback saat offline (bukan sumber utama).
         event.respondWith(
-            caches.match(event.request).then((cached) => cached || fetch(event.request))
+            fetch(event.request)
+                .then((res) => {
+                    const resClone = res.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+                    return res;
+                })
+                .catch(() => caches.match(event.request))
         );
     }
 });
