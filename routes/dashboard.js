@@ -42,7 +42,7 @@ router.get('/', async (req, res) => {
 
     // ---- Target tabungan aktif ----
     const savingsGoals = await db.prepare(`
-        SELECT *, ROUND((nominal_terkumpul * 100.0 / NULLIF(target_nominal, 0)), 1) as progress_persen
+        SELECT *, ROUND((nominal_terkumpul * 100.0 / NULLIF(target_nominal, 0))::numeric, 1) as progress_persen
         FROM savings_goals WHERE couple_id = ? AND status = 'active'
         ORDER BY target_tanggal ASC LIMIT 3
     `).all(coupleId);

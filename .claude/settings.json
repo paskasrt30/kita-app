@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git push *)",
+      "Bash(vercel env *)",
+      "Bash(pg_isready)",
+      "Bash(env)",
+      "Bash(curl -s -X POST http://localhost:3099/api/auth/register -H \"Content-Type: application/json\" -d '{\"nama\":\"Test User\",\"email\":\"test@example.com\",\"password\":\"password123\"}')",
+      "Bash(curl -s -X POST http://localhost:3099/api/income -H 'Content-Type: application/json' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -d '{\"nominal\":5000000,\"sumber\":\"gaji\",\"kategori\":\"gaji_suami\",\"tanggal\":\"2026-07-29\",\"catatan\":\"test\"}')",
+      "Bash(curl -s -X POST http://localhost:3099/api/expenses -H 'Content-Type: application/json' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -d '{\"nominal\":150000,\"kategori\":\"makanan\",\"tanggal\":\"2026-07-29\",\"catatan\":\"test\"}')",
+      "Bash(curl -s http://localhost:3099/api/dashboard -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(curl -s -X POST http://localhost:3099/api/savings -H 'Content-Type: application/json' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -d '{\"nama_target\":\"Dana Darurat\",\"target_nominal\":10000000,\"target_tanggal\":\"2026-12-31\"}')"
+    ]
+  }
+}
