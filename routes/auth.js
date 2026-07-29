@@ -11,10 +11,36 @@ const { kirimEmailVerifikasi, kirimEmailUndanganPasangan } = require('./_email')
 const router = express.Router();
 const googleClient = process.env.GOOGLE_CLIENT_ID ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID) : null;
 
+// Kode undangan rumah tangga: 6 karakter, tanpa 0/O/1/I biar gak ketuker pas diketik manual.
+const KODE_UNDANGAN_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function generateKodeUndangan() {
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+        code += KODE_UNDANGAN_CHARS[Math.floor(Math.random() * KODE_UNDANGAN_CHARS.length)];
+    }
+    return code;
+}
+
+async function buatKodeUndanganUnik() {
+    for (let i = 0; i < 10; i++) {
+        const code = generateKodeUndangan();
+        const existing = await db.prepare('SELECT id FROM couples WHERE kode_undangan = ?').get(code);
+        if (!existing) return code;
+    }
+    throw new Error('Gagal membuat kode undangan unik, coba lagi');
+}
+
+// Buat rumah tangga (couple) solo baru lengkap dengan kode undangannya sendiri.
+async function buatCoupleSolo() {
+    const kode = await buatKodeUndanganUnik();
+    const result = await db.prepare('INSERT INTO couples (uuid, kode_undangan) VALUES (?, ?)').run(uuidv4(), kode);
+    return result.lastInsertRowid;
+}
+
 // ==================== REGISTER ====================
 router.post('/register', async (req, res) => {
     try {
-        const { nama, email, password } = req.body;
+        const { nama, email, password, kode_undangan } = req.body;
 
         if (!nama || !email || !password) {
             return res.status(400).json({
@@ -38,19 +64,28 @@ router.post('/register', async (req, res) => {
             });
         }
 
+        // Tentukan rumah tangga (couple): gabung ke kode undangan yang dimasukkan
+        // supaya langsung berbagi data dengan pemilik kode, atau buat rumah tangga
+        // solo baru (dengan kode sendiri yang bisa dibagikan nanti) kalau tidak ada kode.
+        let coupleId;
+        if (kode_undangan) {
+            const couple = await db.prepare('SELECT id FROM couples WHERE kode_undangan = ?').get(kode_undangan.trim().toUpperCase());
+            if (!couple) {
+                return res.status(400).json({ status: 'error', message: 'Kode undangan tidak ditemukan' });
+            }
+            coupleId = couple.id;
+        } else {
+            coupleId = await buatCoupleSolo();
+        }
+
         const passwordHash = await bcrypt.hash(password, 10);
         const userUuid = uuidv4();
         const verificationToken = crypto.randomBytes(32).toString('hex');
 
         const result = await db.prepare(`
-            INSERT INTO users (uuid, nama, email, password_hash, verification_token)
-            VALUES (?, ?, ?, ?, ?)
-        `).run(userUuid, nama, email, passwordHash, verificationToken);
-
-        // Buat rumah tangga (couple) solo supaya user bisa langsung pakai fitur
-        // sebelum menghubungkan pasangan (mis. saat klik "Lewati untuk sekarang")
-        const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(uuidv4());
-        await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(coupleResult.lastInsertRowid, result.lastInsertRowid);
+            INSERT INTO users (uuid, nama, email, password_hash, verification_token, couple_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(userUuid, nama, email, passwordHash, verificationToken, coupleId);
 
         // Buat pengaturan default untuk user baru
         await db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(result.lastInsertRowid);
@@ -58,16 +93,22 @@ router.post('/register', async (req, res) => {
         const appUrl = `${req.protocol}://${req.get('host')}`;
         const emailResult = await kirimEmailVerifikasi(email, nama, verificationToken, appUrl);
 
+        let message = emailResult.sent
+            ? 'Registrasi berhasil. Silakan cek email kamu untuk verifikasi.'
+            : 'Registrasi berhasil. Email verifikasi belum terkirim (SMTP belum dikonfigurasi) — kamu tetap bisa login.';
+        if (kode_undangan) {
+            message += ' Kamu langsung tergabung dengan rumah tangga pemilik kode undangan.';
+        }
+
         res.status(201).json({
             status: 'success',
-            message: emailResult.sent
-                ? 'Registrasi berhasil. Silakan cek email kamu untuk verifikasi.'
-                : 'Registrasi berhasil. Email verifikasi belum terkirim (SMTP belum dikonfigurasi) — kamu tetap bisa login.',
+            message,
             data: {
                 id: result.lastInsertRowid,
                 nama,
                 email,
-                email_sent: emailResult.sent
+                email_sent: emailResult.sent,
+                joined_via_code: !!kode_undangan
             }
         });
 
@@ -164,8 +205,8 @@ router.post('/google', async (req, res) => {
 
             // Buat rumah tangga (couple) solo supaya user bisa langsung pakai fitur
             // sebelum menghubungkan pasangan
-            const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(uuidv4());
-            await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(coupleResult.lastInsertRowid, result.lastInsertRowid);
+            const soloCoupleId = await buatCoupleSolo();
+            await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(soloCoupleId, result.lastInsertRowid);
 
             await db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(result.lastInsertRowid);
             user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
@@ -177,8 +218,7 @@ router.post('/google', async (req, res) => {
         // Akun lama (dibuat sebelum couple solo otomatis ada) belum punya couple_id -> buatkan sekarang
         let coupleId = user.couple_id;
         if (!coupleId) {
-            const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(uuidv4());
-            coupleId = coupleResult.lastInsertRowid;
+            coupleId = await buatCoupleSolo();
             await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(coupleId, user.id);
         }
 
@@ -226,8 +266,7 @@ router.post('/login', async (req, res) => {
         // Akun lama (dibuat sebelum couple solo otomatis ada) belum punya couple_id -> buatkan sekarang
         let coupleId = user.couple_id;
         if (!coupleId) {
-            const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(uuidv4());
-            coupleId = coupleResult.lastInsertRowid;
+            coupleId = await buatCoupleSolo();
             await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(coupleId, user.id);
         }
 
@@ -408,8 +447,7 @@ router.post('/couple/disconnect', authMiddleware, async (req, res) => {
 
         // Buatkan couple solo baru buat yang barusan disconnect, supaya langsung
         // bisa lanjut pakai app tanpa perlu login ulang dulu (samain kayak alur login).
-        const coupleResult = await db.prepare('INSERT INTO couples (uuid) VALUES (?)').run(uuidv4());
-        const newCoupleId = coupleResult.lastInsertRowid;
+        const newCoupleId = await buatCoupleSolo();
         await db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(newCoupleId, req.user.id);
 
         const newToken = jwt.sign(
@@ -439,16 +477,20 @@ router.get('/me', authMiddleware, async (req, res) => {
         `).get(req.user.id);
 
         let pasangan = null;
+        let kodeUndangan = null;
         if (user.couple_id) {
             pasangan = await db.prepare(`
                 SELECT id, nama, email, avatar_url FROM users
                 WHERE couple_id = ? AND id != ?
             `).get(user.couple_id, user.id);
+
+            const couple = await db.prepare('SELECT kode_undangan FROM couples WHERE id = ?').get(user.couple_id);
+            kodeUndangan = couple ? couple.kode_undangan : null;
         }
 
         res.json({
             status: 'success',
-            data: { ...user, pasangan }
+            data: { ...user, pasangan, kode_undangan: kodeUndangan }
         });
     } catch (err) {
         console.error(err);

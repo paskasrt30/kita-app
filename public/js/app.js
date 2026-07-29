@@ -212,10 +212,11 @@ document.getElementById('form-register').addEventListener('submit', async (e) =>
         const nama = document.getElementById('register-nama').value;
         const email = document.getElementById('register-email').value;
         const password = document.getElementById('register-password').value;
+        const kode_undangan = document.getElementById('register-kode-undangan').value.trim();
 
-        await apiCall('/auth/register', {
+        const registerRes = await apiCall('/auth/register', {
             method: 'POST',
-            body: JSON.stringify({ nama, email, password })
+            body: JSON.stringify({ nama, email, password, kode_undangan: kode_undangan || undefined })
         });
 
         // Setelah register, langsung login otomatis
@@ -229,8 +230,13 @@ document.getElementById('form-register').addEventListener('submit', async (e) =>
         localStorage.setItem('token', state.token);
         localStorage.setItem('user', JSON.stringify(state.user));
 
-        // Karena baru daftar, arahkan ke halaman hubungkan pasangan
-        showPage('page-connect-couple');
+        // Kalau daftar pakai kode undangan, otomatis sudah tergabung dengan
+        // pasangan -> langsung masuk ke app tanpa perlu lewat halaman hubungkan pasangan
+        if (registerRes.data.joined_via_code) {
+            afterLogin();
+        } else {
+            showPage('page-connect-couple');
+        }
 
     } catch (err) {
         errorEl.textContent = err.message;
@@ -2607,7 +2613,15 @@ function renderCoupleSection(me, invitations) {
 
     let html = `
         <div class="card full-width">
-            <p class="text-muted" style="font-size:13px;">Undang pasangan supaya data rumah tangga bisa diakses berdua.</p>
+            <p class="text-muted" style="font-size:13px;">Bagikan kode ini ke pasangan — begitu mereka masukkan kode ini saat daftar, kalian langsung berbagi data yang sama.</p>
+            <div class="flex-between mt-md" style="background:var(--color-bg-alt); border-radius:var(--radius-sm); padding:12px 16px;">
+                <span id="settings-kode-undangan" style="font-size:20px; font-weight:700; letter-spacing:2px;">${me.kode_undangan || '-'}</span>
+                <button type="button" class="btn-icon" onclick="copyCoupleCode()">📋</button>
+            </div>
+        </div>
+
+        <div class="card full-width mt-md">
+            <p class="text-muted" style="font-size:13px;">Atau undang lewat email — pasangan akan lihat undangannya begitu daftar/masuk dengan email itu.</p>
             <form id="form-settings-invite" class="mt-md" onsubmit="sendCoupleInviteFromSettings(event)">
                 <div class="form-group">
                     <input type="email" class="form-input" id="settings-invite-email" placeholder="email pasangan" required>
@@ -2645,6 +2659,16 @@ function renderCoupleSection(me, invitations) {
     }
 
     el.innerHTML = html;
+}
+
+async function copyCoupleCode() {
+    const code = document.getElementById('settings-kode-undangan').textContent;
+    try {
+        await navigator.clipboard.writeText(code);
+        alert(`Kode ${code} disalin. Bagikan ke pasangan supaya bisa gabung saat daftar.`);
+    } catch (err) {
+        alert(`Kode undangan: ${code}`);
+    }
 }
 
 async function sendCoupleInviteFromSettings(event) {

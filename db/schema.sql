@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS couples (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Kode pendek yang bisa dibagikan supaya orang lain langsung gabung ke rumah
+-- tangga yang sama saat mendaftar (alternatif dari alur undangan via email).
+ALTER TABLE couples ADD COLUMN IF NOT EXISTS kode_undangan TEXT UNIQUE;
+
 CREATE TABLE IF NOT EXISTS couple_invitations (
     id SERIAL PRIMARY KEY,
     uuid TEXT UNIQUE NOT NULL,
