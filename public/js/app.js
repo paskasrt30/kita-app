@@ -459,7 +459,7 @@ async function loadDashboard() {
         } else {
             todosEl.innerHTML = d.todos_hari_ini.map(t => `
                 <div class="list-item">
-                    <div class="list-item-icon" style="background:#F5EEFF;">📋</div>
+                    <div class="list-item-icon" style="background:#FDEDF2;">📋</div>
                     <div class="list-item-body">
                         <div class="list-item-title">${t.judul}</div>
                         <div class="list-item-subtitle">${t.nama_assigned || 'Belum ditugaskan'}</div>
@@ -475,7 +475,7 @@ async function loadDashboard() {
         } else {
             billsEl.innerHTML = d.tagihan_jatuh_tempo.map(b => `
                 <div class="list-item">
-                    <div class="list-item-icon" style="background:#FFF3C7;">🧾</div>
+                    <div class="list-item-icon" style="background:#FCE7C8;">🧾</div>
                     <div class="list-item-body">
                         <div class="list-item-title">${b.nama_tagihan}</div>
                         <div class="list-item-subtitle">Jatuh tempo tanggal ${b.tanggal_jatuh_tempo}</div>
@@ -509,7 +509,7 @@ async function loadDashboard() {
         } else {
             activityEl.innerHTML = d.aktivitas_pasangan.map(a => `
                 <div class="list-item">
-                    <div class="list-item-icon" style="background:${a.tipe === 'pemasukan' ? '#DAF9EF' : '#FFE1E9'};">${a.tipe === 'pemasukan' ? '💰' : '💸'}</div>
+                    <div class="list-item-icon" style="background:${a.tipe === 'pemasukan' ? '#E3F7EC' : '#FFDCE3'};">${a.tipe === 'pemasukan' ? '💰' : '💸'}</div>
                     <div class="list-item-body">
                         <div class="list-item-title">${a.nama_user} mencatat ${a.tipe}</div>
                         <div class="list-item-subtitle">${KATEGORI_LABELS[a.detail] || SUMBER_LABELS[a.detail] || a.detail || '-'}</div>
@@ -671,7 +671,7 @@ async function loadTransactions() {
             const kategoriLabel = KATEGORI_LABELS[item.kategori] || SUMBER_LABELS[item.sumber] || item.kategori || item.sumber || '';
             html += `
                 <div class="list-item" onclick="showTransactionDetail('${item.uuid}', '${activeTransactionTab}')">
-                    <div class="list-item-icon" style="background:${activeTransactionTab === 'expense' ? '#FFE1E9' : '#DAF9EF'};">
+                    <div class="list-item-icon" style="background:${activeTransactionTab === 'expense' ? '#FFDCE3' : '#E3F7EC'};">
                         ${activeTransactionTab === 'expense' ? '💸' : '💰'}
                     </div>
                     <div class="list-item-body">
@@ -1323,7 +1323,7 @@ function renderCalendarDayEvents(dateStr) {
 
     listEl.innerHTML = dayEvents.map(ev => `
         <div class="list-item" onclick="showCalendarDetail('${ev.uuid}')">
-            <div class="list-item-icon" style="background:#F5EEFF;">${TIPE_ICON_CAL[ev.tipe] || '📌'}</div>
+            <div class="list-item-icon" style="background:#FDEDF2;">${TIPE_ICON_CAL[ev.tipe] || '📌'}</div>
             <div class="list-item-body">
                 <div class="list-item-title">${ev.judul}</div>
                 <div class="list-item-subtitle">${new Date(ev.tanggal_mulai).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}${ev.lokasi ? ' · ' + ev.lokasi : ''}</div>
@@ -1346,7 +1346,7 @@ async function loadCalendarList() {
 
         listEl.innerHTML = events.map(ev => `
             <div class="list-item" onclick="showCalendarDetail('${ev.uuid}')">
-                <div class="list-item-icon" style="background:#F5EEFF;">${TIPE_ICON_CAL[ev.tipe] || '📌'}</div>
+                <div class="list-item-icon" style="background:#FDEDF2;">${TIPE_ICON_CAL[ev.tipe] || '📌'}</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${ev.judul}</div>
                     <div class="list-item-subtitle">${new Date(ev.tanggal_mulai).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${ev.lokasi ? ' · ' + ev.lokasi : ''}</div>
@@ -1582,7 +1582,7 @@ async function loadBills() {
 
         listEl.innerHTML = bills.map(b => `
             <div class="list-item" onclick="showBillDetail(${b.id})">
-                <div class="list-item-icon" style="background:${b.status_bulan_ini === 'sudah_bayar' ? '#DAF9EF' : '#FFF3C7'};">
+                <div class="list-item-icon" style="background:${b.status_bulan_ini === 'sudah_bayar' ? '#E3F7EC' : '#FCE7C8'};">
                     ${b.status_bulan_ini === 'sudah_bayar' ? '✅' : '🧾'}
                 </div>
                 <div class="list-item-body">
@@ -1905,7 +1905,7 @@ async function loadTransfers() {
 
         listEl.innerHTML = transfers.map(t => `
             <div class="list-item" onclick="showTransferDetail('${t.uuid}')">
-                <div class="list-item-icon" style="background:#F5EEFF;">⇄</div>
+                <div class="list-item-icon" style="background:#FDEDF2;">⇄</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${t.nama_dari} → ${t.nama_ke}</div>
                     <div class="list-item-subtitle">${t.nama_user} · ${formatTanggal(t.tanggal)}</div>
@@ -2065,13 +2065,13 @@ function renderCashflowChart(data) {
                 {
                     label: 'Pemasukan',
                     data: data.map(d => d.pemasukan),
-                    backgroundColor: '#8B5CF6',
+                    backgroundColor: '#F76FA6',
                     borderRadius: 6
                 },
                 {
                     label: 'Pengeluaran',
                     data: data.map(d => d.pengeluaran),
-                    backgroundColor: '#FF6B4A',
+                    backgroundColor: '#D9A066',
                     borderRadius: 6
                 }
             ]
@@ -2098,7 +2098,7 @@ function renderExpenseCategoryChart(data) {
         return;
     }
 
-    const palet = ['#8B5CF6', '#FF6B4A', '#00D9A3', '#FFC93C', '#FF3E9C', '#3EC6FF', '#FF4362', '#22C55E'];
+    const palet = ['#F76FA6', '#D9A066', '#8FD9B4', '#F0B84D', '#C9B6F0', '#7FC4E0', '#FF8FA3', '#A3D9A5'];
 
     expenseCategoryChartInstance = new Chart(ctx, {
         type: 'doughnut',
@@ -2138,7 +2138,7 @@ async function loadStock() {
 
         listEl.innerHTML = items.map(i => `
             <div class="list-item" onclick="showStockDetail('${i.uuid}')">
-                <div class="list-item-icon" style="background:${i.is_low ? '#FFE1E9' : '#F5EEFF'};">${i.is_low ? '⚠️' : '📦'}</div>
+                <div class="list-item-icon" style="background:${i.is_low ? '#FFDCE3' : '#FDEDF2'};">${i.is_low ? '⚠️' : '📦'}</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${i.nama_barang}</div>
                     <div class="list-item-subtitle">${i.jumlah_saat_ini} ${i.satuan || ''} ${i.is_low ? '· Stok menipis!' : ''}</div>
@@ -2250,7 +2250,7 @@ async function loadInventory() {
 
         listEl.innerHTML = items.map(i => `
             <div class="list-item" onclick="showInventoryDetail('${i.uuid}')">
-                <div class="list-item-icon" style="background:#F5EEFF;">🛋️</div>
+                <div class="list-item-icon" style="background:#FDEDF2;">🛋️</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${i.nama_barang}</div>
                     <div class="list-item-subtitle">${i.lokasi || '-'} ${i.harga_beli ? '· ' + formatRupiah(i.harga_beli) : ''}</div>
@@ -2355,7 +2355,7 @@ async function loadServices() {
 
         listEl.innerHTML = items.map(i => `
             <div class="list-item" onclick="showServiceDetail('${i.uuid}')">
-                <div class="list-item-icon" style="background:${i.sudah_lewat ? '#FFE1E9' : '#F5EEFF'};">🔧</div>
+                <div class="list-item-icon" style="background:${i.sudah_lewat ? '#FFDCE3' : '#FDEDF2'};">🔧</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${i.nama_item}${i.jenis_servis ? ' — ' + i.jenis_servis : ''}</div>
                     <div class="list-item-subtitle">${i.tanggal_servis_berikutnya ? 'Berikutnya: ' + formatTanggal(i.tanggal_servis_berikutnya) : 'Belum dijadwalkan'}</div>
@@ -2466,7 +2466,7 @@ async function loadDocuments() {
 
         listEl.innerHTML = items.map(i => `
             <div class="list-item" onclick="showDocumentDetail('${i.uuid}')">
-                <div class="list-item-icon" style="background:${i.sudah_kedaluwarsa ? '#FFE1E9' : i.akan_kedaluwarsa ? '#FFF3C7' : '#F5EEFF'};">📄</div>
+                <div class="list-item-icon" style="background:${i.sudah_kedaluwarsa ? '#FFDCE3' : i.akan_kedaluwarsa ? '#FCE7C8' : '#FDEDF2'};">📄</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${i.nama_dokumen}</div>
                     <div class="list-item-subtitle">${JENIS_DOKUMEN_LABEL[i.jenis_dokumen] || i.jenis_dokumen}${i.berlaku_sampai ? ' · Berlaku sampai ' + formatTanggal(i.berlaku_sampai) : ''}</div>
@@ -2670,7 +2670,7 @@ async function loadNotifications() {
 
         listEl.innerHTML = notifications.map(n => `
             <div class="list-item" style="${n.is_read ? 'opacity:0.6;' : ''}" onclick="markNotificationRead('${n.uuid}')">
-                <div class="list-item-icon" style="background:#F5EEFF;">${NOTIF_ICON[n.tipe] || '🔔'}</div>
+                <div class="list-item-icon" style="background:#FDEDF2;">${NOTIF_ICON[n.tipe] || '🔔'}</div>
                 <div class="list-item-body">
                     <div class="list-item-title">${n.judul}</div>
                     <div class="list-item-subtitle">${n.pesan || ''}</div>

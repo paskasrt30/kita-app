@@ -10,7 +10,12 @@
       "Bash(curl -s -X POST http://localhost:3099/api/expenses -H 'Content-Type: application/json' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -d '{\"nominal\":150000,\"kategori\":\"makanan\",\"tanggal\":\"2026-07-29\",\"catatan\":\"test\"}')",
       "Bash(curl -s http://localhost:3099/api/dashboard -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
       "Bash(curl -s -X POST http://localhost:3099/api/savings -H 'Content-Type: application/json' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -d '{\"nama_target\":\"Dana Darurat\",\"target_nominal\":10000000,\"target_tanggal\":\"2026-12-31\"}')",
-      "Bash(SCRATCH=/private/tmp/claude-501/-Users-paskariasirait-Sites-kita-app/e032dc2c-b60d-4cbf-9c07-67ef302d6dc9/scratchpad NODE_PATH=/Users/paskariasirait/Sites/kita-app/node_modules node /private/tmp/claude-501/-Users-paskariasirait-Sites-kita-app/e032dc2c-b60d-4cbf-9c07-67ef302d6dc9/scratchpad/drive.js)"
+      "Bash(SCRATCH=/private/tmp/claude-501/-Users-paskariasirait-Sites-kita-app/e032dc2c-b60d-4cbf-9c07-67ef302d6dc9/scratchpad NODE_PATH=/Users/paskariasirait/Sites/kita-app/node_modules node /private/tmp/claude-501/-Users-paskariasirait-Sites-kita-app/e032dc2c-b60d-4cbf-9c07-67ef302d6dc9/scratchpad/drive.js)",
+      "Bash(rsvg-convert -w 512 -h 512 logo.svg -o preview-512.png)",
+      "Bash(rsvg-convert -w 32 -h 32 logo.svg -o preview-32.png)",
+      "Bash(rsvg-convert -w 192 -h 192 logo.svg -o preview-192.png)",
+      "Bash(node -e ' *)",
+      "Bash(pkill -f \"http.server 8935\")"
     ]
   }
 }

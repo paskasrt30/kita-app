@@ -4,31 +4,33 @@
    DESIGN TOKENS — "Dua Menjadi Satu"
    ============================================ */
 :root {
-    /* Warna inti: dua warna mewakili pasangan, melebur jadi satu palet — versi warna-warni & meriah */
-    --color-partner-a: #8B5CF6;      /* ungu vivid */
-    --color-partner-a-light: #C4B5FD;
-    --color-partner-b: #FF6B4A;      /* oranye vivid */
-    --color-partner-b-light: #FFB69B;
-    --color-shared: #00D9A3;         /* mint vivid - kolaborasi/sukses */
+    /* Warna inti: tema anjing lucu tapi tetap feminin — pink blush x cokelat karamel */
+    --color-partner-a: #F76FA6;      /* pink blush - kalung anjing girly */
+    --color-partner-a-light: #FFB8D9;
+    --color-partner-b: #D9A066;      /* karamel hangat - warna bulu anjing */
+    --color-partner-b-light: #F0CDA0;
+    --color-shared: #8FD9B4;         /* mint sage lembut - kolaborasi/sukses */
 
     /* Aksen tambahan untuk variasi warna (chart, badge, ikon) */
-    --color-accent-pink: #FF3E9C;
-    --color-accent-yellow: #FFC93C;
-    --color-accent-blue: #3EC6FF;
-    --color-accent-green: #22C55E;
+    --color-accent-pink: #FF8FA3;
+    --color-accent-yellow: #F0B84D;
+    --color-accent-blue: #7FC4E0;
+    --color-accent-green: #A3D9A5;
+    --color-accent-lavender: #C9B6F0;
+    --color-accent-brown: #8B6B4A;   /* cokelat tapak kaki/kalung */
 
-    --color-bg: #FFFBF7;
-    --color-bg-alt: #F5EEFF;
+    --color-bg: #FFF7F2;
+    --color-bg-alt: #FDEDF2;
     --color-surface: #FFFFFF;
-    --color-text: #2E2B3D;
-    --color-text-muted: #6B6778;
-    --color-border: #EAE5EF;
+    --color-text: #4A3540;
+    --color-text-muted: #8B7680;
+    --color-border: #F3DEE6;
 
-    --color-danger: #FF4362;
+    --color-danger: #FF6B81;
     --color-warning: var(--color-accent-yellow);
     --color-success: var(--color-shared);
 
-    --gradient-couple: linear-gradient(135deg, var(--color-partner-a) 0%, var(--color-accent-pink) 55%, var(--color-partner-b) 100%);
+    --gradient-couple: linear-gradient(135deg, var(--color-partner-a) 0%, #FFA98F 55%, var(--color-partner-b) 100%);
 
     /* Tipografi */
     --font-display: 'Baloo 2', sans-serif;
@@ -53,12 +55,12 @@
 }
 
 [data-theme="dark"] {
-    --color-bg: #1B1330;
-    --color-bg-alt: #241A3D;
-    --color-surface: #2A1F49;
-    --color-text: #F5F0FF;
-    --color-text-muted: #B3A6D9;
-    --color-border: #3D2E5C;
+    --color-bg: #2B1E24;
+    --color-bg-alt: #3A2830;
+    --color-surface: #40303A;
+    --color-text: #FBEFF3;
+    --color-text-muted: #C9A8B5;
+    --color-border: #573F4A;
 }
 
 /* ============================================
@@ -495,8 +497,8 @@ a { text-decoration: none; color: inherit; }
     text-transform: uppercase;
 }
 
-.priority-badge.tinggi { background: #FFE1E9; color: var(--color-danger); }
-.priority-badge.sedang { background: #FFF3C7; color: #B5820A; }
+.priority-badge.tinggi { background: #FFDCE3; color: var(--color-danger); }
+.priority-badge.sedang { background: #FCE7C8; color: #A9762A; }
 .priority-badge.rendah { background: var(--color-bg-alt); color: var(--color-text-muted); }
 
 .notif-badge {
@@ -786,7 +788,7 @@ a { text-decoration: none; color: inherit; }
 .auth-switch a { color: var(--color-partner-a); font-weight: 700; }
 
 .error-banner {
-    background: #FFE1E9;
+    background: #FFDCE3;
     color: var(--color-danger);
     padding: var(--space-md);
     border-radius: var(--radius-sm);
