@@ -4,25 +4,31 @@
    DESIGN TOKENS — "Dua Menjadi Satu"
    ============================================ */
 :root {
-    /* Warna inti: dua warna mewakili pasangan, melebur jadi satu palet */
-    --color-partner-a: #6C5CE7;      /* indigo-violet */
-    --color-partner-a-light: #A29BFE;
-    --color-partner-b: #FF7F6B;      /* coral hangat */
-    --color-partner-b-light: #FFB4A6;
-    --color-shared: #1EC9A5;         /* teal - kolaborasi/sukses */
+    /* Warna inti: dua warna mewakili pasangan, melebur jadi satu palet — versi warna-warni & meriah */
+    --color-partner-a: #8B5CF6;      /* ungu vivid */
+    --color-partner-a-light: #C4B5FD;
+    --color-partner-b: #FF6B4A;      /* oranye vivid */
+    --color-partner-b-light: #FFB69B;
+    --color-shared: #00D9A3;         /* mint vivid - kolaborasi/sukses */
 
-    --color-bg: #FBF8F9;
-    --color-bg-alt: #F3EFF6;
+    /* Aksen tambahan untuk variasi warna (chart, badge, ikon) */
+    --color-accent-pink: #FF3E9C;
+    --color-accent-yellow: #FFC93C;
+    --color-accent-blue: #3EC6FF;
+    --color-accent-green: #22C55E;
+
+    --color-bg: #FFFBF7;
+    --color-bg-alt: #F5EEFF;
     --color-surface: #FFFFFF;
     --color-text: #2E2B3D;
     --color-text-muted: #6B6778;
     --color-border: #EAE5EF;
 
-    --color-danger: #F0506E;
-    --color-warning: #FFB84D;
+    --color-danger: #FF4362;
+    --color-warning: var(--color-accent-yellow);
     --color-success: var(--color-shared);
 
-    --gradient-couple: linear-gradient(135deg, var(--color-partner-a) 0%, var(--color-partner-b) 100%);
+    --gradient-couple: linear-gradient(135deg, var(--color-partner-a) 0%, var(--color-accent-pink) 55%, var(--color-partner-b) 100%);
 
     /* Tipografi */
     --font-display: 'Baloo 2', sans-serif;
@@ -47,12 +53,12 @@
 }
 
 [data-theme="dark"] {
-    --color-bg: #1A1825;
-    --color-bg-alt: #252235;
-    --color-surface: #2A2738;
-    --color-text: #F0EEF5;
-    --color-text-muted: #9B96AE;
-    --color-border: #3A3650;
+    --color-bg: #1B1330;
+    --color-bg-alt: #241A3D;
+    --color-surface: #2A1F49;
+    --color-text: #F5F0FF;
+    --color-text-muted: #B3A6D9;
+    --color-border: #3D2E5C;
 }
 
 /* ============================================
@@ -489,9 +495,9 @@ a { text-decoration: none; color: inherit; }
     text-transform: uppercase;
 }
 
-.priority-badge.tinggi { background: #FEEBEF; color: var(--color-danger); }
-.priority-badge.sedang { background: #FFF3E0; color: #C77700; }
-.priority-badge.rendah { background: #F3EFF6; color: var(--color-text-muted); }
+.priority-badge.tinggi { background: #FFE1E9; color: var(--color-danger); }
+.priority-badge.sedang { background: #FFF3C7; color: #B5820A; }
+.priority-badge.rendah { background: var(--color-bg-alt); color: var(--color-text-muted); }
 
 .notif-badge {
     position: absolute;
@@ -780,7 +786,7 @@ a { text-decoration: none; color: inherit; }
 .auth-switch a { color: var(--color-partner-a); font-weight: 700; }
 
 .error-banner {
-    background: #FEEBEF;
+    background: #FFE1E9;
     color: var(--color-danger);
     padding: var(--space-md);
     border-radius: var(--radius-sm);

@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#8177D9"/>
-      <stop offset="55%" stop-color="#C1789C"/>
-      <stop offset="100%" stop-color="#F0906B"/>
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="55%" stop-color="#FF3E9C"/>
+      <stop offset="100%" stop-color="#FF6B4A"/>
     </linearGradient>
   </defs>
 
@@ -20,9 +20,9 @@
   <rect x="142" y="240" width="228" height="176" rx="14" fill="#FFFFFF"/>
 
   <!-- roof ridge accent -->
-  <rect x="142" y="236" width="228" height="10" fill="#2ED9A0"/>
+  <rect x="142" y="236" width="228" height="10" fill="#00D9A3"/>
 
   <!-- CP monogram -->
   <text x="256" y="356" font-family="Arial, Helvetica, sans-serif" font-weight="800"
-        font-size="118" fill="#5B4B8A" text-anchor="middle" letter-spacing="-2">CP</text>
+        font-size="118" fill="#8B5CF6" text-anchor="middle" letter-spacing="-2">CP</text>
 </svg>
