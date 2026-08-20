@@ -318,6 +318,10 @@
             <button class="btn btn-secondary todo-filter" onclick="switchTodoFilter('belum')" style="flex:1;">Belum</button>
             <button class="btn btn-secondary todo-filter" onclick="switchTodoFilter('selesai')" style="flex:1;">Selesai</button>
         </div>
+        <div class="flex gap-sm" style="padding: 0 4px 16px; align-items:center;">
+            <input type="date" id="todo-date-filter" class="form-input" style="flex:1;" onchange="switchTodoDateFilter(this.value)">
+            <button class="btn btn-secondary" id="todo-date-clear" onclick="switchTodoDateFilter('')" style="display:none;">✕</button>
+        </div>
         <div id="todos-list"></div>
     </div>
 

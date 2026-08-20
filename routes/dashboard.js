@@ -56,13 +56,18 @@ router.get('/', async (req, res) => {
     `).all(coupleId, tanggalHariIni, tanggalHariIni + 7);
 
     // ---- To-do hari ini ----
+    // Tugas dengan deadline hari ini selalu tampil (termasuk yang sudah selesai, sebagai tanda centang).
+    // Tugas overdue/tanpa deadline hanya tampil selama belum selesai.
     const todosHariIni = await db.prepare(`
         SELECT t.*, u.nama as nama_assigned
         FROM todos t
         LEFT JOIN users u ON t.assigned_to = u.id
-        WHERE t.couple_id = ? AND t.status != 'selesai'
-        AND (t.deadline::date <= CURRENT_DATE OR t.deadline IS NULL)
-        ORDER BY t.prioritas DESC, t.deadline ASC
+        WHERE t.couple_id = ?
+        AND (
+            t.deadline::date = CURRENT_DATE
+            OR (t.status != 'selesai' AND (t.deadline::date < CURRENT_DATE OR t.deadline IS NULL))
+        )
+        ORDER BY (t.status = 'selesai') ASC, t.prioritas DESC, t.deadline ASC
         LIMIT 5
     `).all(coupleId);
 

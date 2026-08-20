@@ -9,7 +9,7 @@ router.use(authMiddleware, requireCouple);
 // ==================== GET DAFTAR TUGAS ====================
 router.get('/', async (req, res) => {
     try {
-        const { status } = req.query;
+        const { status, tanggal } = req.query;
 
         let sql = `
             SELECT t.*, uc.nama as nama_pembuat, ua.nama as nama_assigned
@@ -23,6 +23,11 @@ router.get('/', async (req, res) => {
         if (status) {
             sql += ' AND t.status = ?';
             params.push(status);
+        }
+
+        if (tanggal) {
+            sql += ' AND t.deadline::date = ?';
+            params.push(tanggal);
         }
 
         sql += ` ORDER BY

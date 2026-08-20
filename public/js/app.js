@@ -458,13 +458,13 @@ async function loadDashboard() {
             todosEl.innerHTML = '<div class="empty-state"><div class="emoji">✅</div><p>Belum ada tugas hari ini</p></div>';
         } else {
             todosEl.innerHTML = d.todos_hari_ini.map(t => `
-                <div class="checklist-item ${t.status === 'selesai' ? 'done' : ''}" onclick="toggleTodoStatus('${t.uuid}', '${t.status}')">
-                    <div class="checklist-checkbox ${t.status === 'selesai' ? 'checked' : ''}">
+                <div class="checklist-item ${t.status === 'selesai' ? 'done' : ''}">
+                    <div class="checklist-checkbox ${t.status === 'selesai' ? 'checked' : ''}" onclick="toggleTodoStatus('${t.uuid}', '${t.status}')">
                         ${t.status === 'selesai' ? '✓' : ''}
                     </div>
                     <div class="list-item-body">
                         <div class="list-item-title">${t.judul}</div>
-                        <div class="list-item-subtitle">${t.nama_assigned || 'Belum ditugaskan'}</div>
+                        <div class="list-item-subtitle">${t.nama_assigned || 'Belum ditugaskan'}${t.status === 'selesai' ? ' · Selesai' : ''}</div>
                     </div>
                 </div>
             `).join('');
@@ -1052,6 +1052,7 @@ document.getElementById('form-deposit-savings').addEventListener('submit', async
 // TO-DO LIST
 // ============================================
 let activeTodoFilter = '';
+let activeTodoDate = '';
 
 function switchTodoFilter(filter) {
     activeTodoFilter = filter;
@@ -1063,18 +1064,30 @@ function switchTodoFilter(filter) {
     loadTodos();
 }
 
+function switchTodoDateFilter(tanggal) {
+    activeTodoDate = tanggal;
+    document.getElementById('todo-date-filter').value = tanggal;
+    document.getElementById('todo-date-clear').style.display = tanggal ? '' : 'none';
+    loadTodos();
+}
+
 let currentTodos = [];
 
 async function loadTodos() {
     try {
-        const endpoint = activeTodoFilter ? `/todos?status=${activeTodoFilter}` : '/todos';
+        const params = new URLSearchParams();
+        if (activeTodoFilter) params.set('status', activeTodoFilter);
+        if (activeTodoDate) params.set('tanggal', activeTodoDate);
+        const qs = params.toString();
+        const endpoint = qs ? `/todos?${qs}` : '/todos';
         const res = await apiCall(endpoint);
         const todos = res.data;
         currentTodos = todos;
 
         const listEl = document.getElementById('todos-list');
         if (todos.length === 0) {
-            listEl.innerHTML = '<div class="empty-state"><div class="emoji">✅</div><p>Tidak ada tugas di sini</p></div>';
+            const pesan = activeTodoDate ? `Tidak ada tugas pada ${formatTanggal(activeTodoDate)}` : 'Tidak ada tugas di sini';
+            listEl.innerHTML = `<div class="empty-state"><div class="emoji">✅</div><p>${pesan}</p></div>`;
             return;
         }
 
