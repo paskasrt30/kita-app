@@ -458,8 +458,10 @@ async function loadDashboard() {
             todosEl.innerHTML = '<div class="empty-state"><div class="emoji">✅</div><p>Belum ada tugas hari ini</p></div>';
         } else {
             todosEl.innerHTML = d.todos_hari_ini.map(t => `
-                <div class="list-item">
-                    <div class="list-item-icon" style="background:#FDEDF2;">📋</div>
+                <div class="checklist-item ${t.status === 'selesai' ? 'done' : ''}" onclick="toggleTodoStatus('${t.uuid}', '${t.status}')">
+                    <div class="checklist-checkbox ${t.status === 'selesai' ? 'checked' : ''}">
+                        ${t.status === 'selesai' ? '✓' : ''}
+                    </div>
                     <div class="list-item-body">
                         <div class="list-item-title">${t.judul}</div>
                         <div class="list-item-subtitle">${t.nama_assigned || 'Belum ditugaskan'}</div>

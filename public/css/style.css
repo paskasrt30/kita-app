@@ -264,6 +264,7 @@ a { text-decoration: none; color: inherit; }
     font-size: 13px;
     color: var(--color-partner-a);
     font-weight: 600;
+    cursor: pointer;
 }
 
 /* ============================================
