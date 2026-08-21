@@ -31,6 +31,26 @@ function formatRupiah(nominal) {
     return 'Rp ' + Number(nominal || 0).toLocaleString('id-ID');
 }
 
+// Sembunyikan angka nominal di beranda (mis. saat layar dilihat orang lain).
+// Preferensi disimpan di localStorage supaya tetap tersembunyi walau app dimuat ulang.
+let saldoHidden = localStorage.getItem('saldoHidden') === 'true';
+
+function maskRupiah(nominal) {
+    return saldoHidden ? 'Rp ••••••' : formatRupiah(nominal);
+}
+
+function updateSaldoToggleIcon() {
+    const btn = document.getElementById('btn-toggle-saldo');
+    if (btn) btn.textContent = saldoHidden ? '🙈' : '👁️';
+}
+
+function toggleSaldoVisibility() {
+    saldoHidden = !saldoHidden;
+    localStorage.setItem('saldoHidden', saldoHidden);
+    updateSaldoToggleIcon();
+    if (lastDashboardData) renderDashboard(lastDashboardData);
+}
+
 function formatTanggal(dateStr) {
     const d = new Date(dateStr);
     return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -45,6 +65,25 @@ function toDatetimeLocalValue(dateStr) {
     const d = new Date(dateStr);
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Format input nominal (rupiah) dengan titik ribuan saat mengetik, mis. 1000000 -> 1.000.000.
+// Input-nya bertipe text (bukan number) supaya karakter titik pemisah bisa ditampilkan.
+function formatAngkaInput(el) {
+    const cursorFromEnd = el.value.length - el.selectionStart;
+    const raw = el.value.replace(/\D/g, '');
+    el.value = raw ? Number(raw).toLocaleString('id-ID') : '';
+    const pos = Math.max(0, el.value.length - cursorFromEnd);
+    el.setSelectionRange(pos, pos);
+}
+
+function getAngka(id) {
+    const raw = document.getElementById(id).value.replace(/\D/g, '');
+    return raw ? Number(raw) : 0;
+}
+
+function setAngka(id, value) {
+    document.getElementById(id).value = (value || value === 0) ? Number(value).toLocaleString('id-ID') : '';
 }
 
 async function apiCall(endpoint, options = {}) {
@@ -181,8 +220,8 @@ let calcResetOnNextDigit = false;
 
 function openCalculatorSheet(inputId) {
     calcTargetInputId = inputId;
-    const currentVal = document.getElementById(inputId).value;
-    calcDisplayValue = currentVal && Number(currentVal) !== 0 ? String(Number(currentVal)) : '0';
+    const currentVal = getAngka(inputId);
+    calcDisplayValue = currentVal !== 0 ? String(currentVal) : '0';
     calcPreviousValue = null;
     calcPendingOperator = null;
     calcResetOnNextDigit = false;
@@ -309,7 +348,7 @@ function calcConfirm() {
     if (calcDisplayValue === 'Error') return;
 
     const result = parseFloat(calcDisplayValue) || 0;
-    document.getElementById(calcTargetInputId).value = result;
+    setAngka(calcTargetInputId, result);
     closeSheet('sheet-calculator');
 }
 
@@ -443,89 +482,109 @@ function updateGreetingHeader() {
 // ============================================
 // DASHBOARD
 // ============================================
+let lastDashboardData = null;
+
 async function loadDashboard() {
     try {
         const res = await apiCall('/dashboard');
-        const d = res.data;
-
-        document.getElementById('dash-total-saldo').textContent = formatRupiah(d.total_saldo);
-        document.getElementById('dash-pemasukan').textContent = formatRupiah(d.total_pemasukan_bulan_ini);
-        document.getElementById('dash-pengeluaran').textContent = formatRupiah(d.total_pengeluaran_bulan_ini);
-
-        // Todos
-        const todosEl = document.getElementById('dash-todos');
-        if (d.todos_hari_ini.length === 0) {
-            todosEl.innerHTML = '<div class="empty-state"><div class="emoji">✅</div><p>Belum ada tugas hari ini</p></div>';
-        } else {
-            todosEl.innerHTML = d.todos_hari_ini.map(t => `
-                <div class="checklist-item ${t.status === 'selesai' ? 'done' : ''}">
-                    <div class="checklist-checkbox ${t.status === 'selesai' ? 'checked' : ''}" onclick="toggleTodoStatus('${t.uuid}', '${t.status}')">
-                        ${t.status === 'selesai' ? '✓' : ''}
-                    </div>
-                    <div class="list-item-body">
-                        <div class="list-item-title">${t.judul}</div>
-                        <div class="list-item-subtitle">${t.nama_assigned || 'Belum ditugaskan'}${t.status === 'selesai' ? ' · Selesai' : ''}</div>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // Bills
-        const billsEl = document.getElementById('dash-bills');
-        if (d.tagihan_jatuh_tempo.length === 0) {
-            billsEl.innerHTML = '<div class="empty-state"><div class="emoji">🎉</div><p>Tidak ada tagihan mendesak</p></div>';
-        } else {
-            billsEl.innerHTML = d.tagihan_jatuh_tempo.map(b => `
-                <div class="list-item">
-                    <div class="list-item-icon" style="background:#FCE7C8;">🧾</div>
-                    <div class="list-item-body">
-                        <div class="list-item-title">${b.nama_tagihan}</div>
-                        <div class="list-item-subtitle">Jatuh tempo tanggal ${b.tanggal_jatuh_tempo}</div>
-                    </div>
-                    <div class="list-item-value">${formatRupiah(b.nominal)}</div>
-                </div>
-            `).join('');
-        }
-
-        // Savings
-        const savingsEl = document.getElementById('dash-savings');
-        if (d.target_tabungan.length === 0) {
-            savingsEl.innerHTML = '<div class="empty-state"><div class="emoji">🐷</div><p>Belum ada target tabungan</p></div>';
-        } else {
-            savingsEl.innerHTML = d.target_tabungan.map(s => `
-                <div class="card full-width mt-md">
-                    <div class="flex-between">
-                        <span class="list-item-title">${s.nama_target}</span>
-                        <span class="text-muted" style="font-size:12px;">${s.progress_persen || 0}%</span>
-                    </div>
-                    <div class="progress-track"><div class="progress-fill" style="width:${Math.min(s.progress_persen || 0, 100)}%"></div></div>
-                    <div class="text-muted mt-md" style="font-size:12px;">${formatRupiah(s.nominal_terkumpul)} dari ${formatRupiah(s.target_nominal)}</div>
-                </div>
-            `).join('');
-        }
-
-        // Activity
-        const activityEl = document.getElementById('dash-activity');
-        if (d.aktivitas_pasangan.length === 0) {
-            activityEl.innerHTML = '<div class="empty-state"><div class="emoji">💬</div><p>Belum ada aktivitas terbaru</p></div>';
-        } else {
-            activityEl.innerHTML = d.aktivitas_pasangan.map(a => `
-                <div class="list-item">
-                    <div class="list-item-icon" style="background:${a.tipe === 'pemasukan' ? '#E3F7EC' : '#FFDCE3'};">${a.tipe === 'pemasukan' ? '💰' : '💸'}</div>
-                    <div class="list-item-body">
-                        <div class="list-item-title">${a.nama_user} mencatat ${a.tipe}</div>
-                        <div class="list-item-subtitle">${KATEGORI_LABELS[a.detail] || SUMBER_LABELS[a.detail] || a.detail || '-'}</div>
-                    </div>
-                    <div class="list-item-value ${a.tipe === 'pemasukan' ? 'income' : 'expense'}">${formatRupiah(a.nominal)}</div>
-                </div>
-            `).join('');
-        }
-
+        lastDashboardData = res.data;
+        renderDashboard(lastDashboardData);
     } catch (err) {
         console.error('Gagal memuat dashboard:', err.message);
         if (err.message.includes('pasangan')) {
             showPage('page-connect-couple');
         }
+    }
+}
+
+function renderDashboard(d) {
+    document.getElementById('dash-total-saldo').textContent = maskRupiah(d.total_saldo);
+    document.getElementById('dash-pemasukan').textContent = maskRupiah(d.total_pemasukan_bulan_ini);
+    document.getElementById('dash-pengeluaran').textContent = maskRupiah(d.total_pengeluaran_bulan_ini);
+
+    // Jadwal kalender hari ini
+    const jadwalEl = document.getElementById('dash-jadwal');
+    if (d.jadwal_hari_ini.length === 0) {
+        jadwalEl.innerHTML = '<div class="empty-state"><div class="emoji">📅</div><p>Tidak ada jadwal hari ini</p></div>';
+    } else {
+        jadwalEl.innerHTML = d.jadwal_hari_ini.map(ev => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:#E4F2FF;">${TIPE_ICON_CAL[ev.tipe] || '📌'}</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${ev.judul}</div>
+                    <div class="list-item-subtitle">${new Date(ev.tanggal_mulai).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}${ev.lokasi ? ' · ' + ev.lokasi : ''}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Todos
+    const todosEl = document.getElementById('dash-todos');
+    if (d.todos_hari_ini.length === 0) {
+        todosEl.innerHTML = '<div class="empty-state"><div class="emoji">✅</div><p>Belum ada tugas hari ini</p></div>';
+    } else {
+        todosEl.innerHTML = d.todos_hari_ini.map(t => `
+            <div class="checklist-item ${t.status === 'selesai' ? 'done' : ''}">
+                <div class="checklist-checkbox ${t.status === 'selesai' ? 'checked' : ''}" onclick="toggleTodoStatus('${t.uuid}', '${t.status}')">
+                    ${t.status === 'selesai' ? '✓' : ''}
+                </div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${t.judul}</div>
+                    <div class="list-item-subtitle">${t.nama_assigned || 'Belum ditugaskan'}${t.status === 'selesai' ? ' · Selesai' : ''}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Bills
+    const billsEl = document.getElementById('dash-bills');
+    if (d.tagihan_jatuh_tempo.length === 0) {
+        billsEl.innerHTML = '<div class="empty-state"><div class="emoji">🎉</div><p>Tidak ada tagihan mendesak</p></div>';
+    } else {
+        billsEl.innerHTML = d.tagihan_jatuh_tempo.map(b => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:#FCE7C8;">🧾</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${b.nama_tagihan}</div>
+                    <div class="list-item-subtitle">Jatuh tempo tanggal ${b.tanggal_jatuh_tempo}</div>
+                </div>
+                <div class="list-item-value">${maskRupiah(b.nominal)}</div>
+            </div>
+        `).join('');
+    }
+
+    // Savings
+    const savingsEl = document.getElementById('dash-savings');
+    if (d.target_tabungan.length === 0) {
+        savingsEl.innerHTML = '<div class="empty-state"><div class="emoji">🐷</div><p>Belum ada target tabungan</p></div>';
+    } else {
+        savingsEl.innerHTML = d.target_tabungan.map(s => `
+            <div class="card full-width mt-md">
+                <div class="flex-between">
+                    <span class="list-item-title">${s.nama_target}</span>
+                    <span class="text-muted" style="font-size:12px;">${s.progress_persen || 0}%</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill" style="width:${Math.min(s.progress_persen || 0, 100)}%"></div></div>
+                <div class="text-muted mt-md" style="font-size:12px;">${maskRupiah(s.nominal_terkumpul)} dari ${maskRupiah(s.target_nominal)}</div>
+            </div>
+        `).join('');
+    }
+
+    // Activity
+    const activityEl = document.getElementById('dash-activity');
+    if (d.aktivitas_pasangan.length === 0) {
+        activityEl.innerHTML = '<div class="empty-state"><div class="emoji">💬</div><p>Belum ada aktivitas terbaru</p></div>';
+    } else {
+        activityEl.innerHTML = d.aktivitas_pasangan.map(a => `
+            <div class="list-item">
+                <div class="list-item-icon" style="background:${a.tipe === 'pemasukan' ? '#E3F7EC' : '#FFDCE3'};">${a.tipe === 'pemasukan' ? '💰' : '💸'}</div>
+                <div class="list-item-body">
+                    <div class="list-item-title">${a.nama_user} mencatat ${a.tipe}</div>
+                    <div class="list-item-subtitle">${KATEGORI_LABELS[a.detail] || SUMBER_LABELS[a.detail] || a.detail || '-'}</div>
+                </div>
+                <div class="list-item-value ${a.tipe === 'pemasukan' ? 'income' : 'expense'}">${maskRupiah(a.nominal)}</div>
+            </div>
+        `).join('');
     }
 }
 
@@ -586,7 +645,7 @@ function editAccount(uuid) {
     document.getElementById('account-nama').value = account.nama_rekening;
     document.getElementById('account-tipe').value = account.tipe;
     document.getElementById('account-tipe').disabled = true;
-    document.getElementById('account-saldo').value = account.saldo_awal;
+    setAngka('account-saldo', account.saldo_awal);
     document.getElementById('account-saldo').disabled = true;
     document.getElementById('account-sheet-title').textContent = 'Edit Rekening';
     openSheet('sheet-add-account');
@@ -619,7 +678,7 @@ document.getElementById('form-add-account').addEventListener('submit', async (e)
                 body: JSON.stringify({
                     nama_rekening: document.getElementById('account-nama').value,
                     tipe: document.getElementById('account-tipe').value,
-                    saldo_awal: Number(document.getElementById('account-saldo').value)
+                    saldo_awal: getAngka('account-saldo')
                 })
             });
         }
@@ -720,7 +779,7 @@ function editTransaction(uuid, tipe) {
 
     if (tipe === 'expense') {
         document.getElementById('expense-edit-uuid').value = uuid;
-        document.getElementById('expense-nominal').value = item.nominal;
+        setAngka('expense-nominal', item.nominal);
         document.getElementById('expense-kategori').value = item.kategori;
         document.getElementById('expense-tanggal').value = item.tanggal;
         document.getElementById('expense-catatan').value = item.catatan || '';
@@ -728,7 +787,7 @@ function editTransaction(uuid, tipe) {
         openSheet('sheet-add-expense');
     } else {
         document.getElementById('income-edit-uuid').value = uuid;
-        document.getElementById('income-nominal').value = item.nominal;
+        setAngka('income-nominal', item.nominal);
         document.getElementById('income-sumber').value = item.sumber;
         document.getElementById('income-tanggal').value = item.tanggal;
         document.getElementById('income-catatan').value = item.catatan || '';
@@ -755,7 +814,7 @@ document.getElementById('form-add-expense').addEventListener('submit', async (e)
     try {
         const editUuid = document.getElementById('expense-edit-uuid').value;
         const payload = {
-            nominal: Number(document.getElementById('expense-nominal').value),
+            nominal: getAngka('expense-nominal'),
             kategori: document.getElementById('expense-kategori').value,
             tanggal: document.getElementById('expense-tanggal').value,
             catatan: document.getElementById('expense-catatan').value
@@ -783,7 +842,7 @@ document.getElementById('form-add-income').addEventListener('submit', async (e) 
     try {
         const editUuid = document.getElementById('income-edit-uuid').value;
         const payload = {
-            nominal: Number(document.getElementById('income-nominal').value),
+            nominal: getAngka('income-nominal'),
             sumber: document.getElementById('income-sumber').value,
             tanggal: document.getElementById('income-tanggal').value,
             catatan: document.getElementById('income-catatan').value
@@ -870,7 +929,7 @@ function editBudget(id, kategori, targetNominal) {
     document.getElementById('budget-edit-mode').value = 'edit';
     document.getElementById('budget-kategori').value = kategori;
     document.getElementById('budget-kategori').disabled = true;
-    document.getElementById('budget-target').value = targetNominal;
+    setAngka('budget-target', targetNominal);
     document.getElementById('budget-sheet-title').textContent = 'Edit Anggaran';
     openSheet('sheet-add-budget');
 }
@@ -893,7 +952,7 @@ document.getElementById('form-add-budget').addEventListener('submit', async (e) 
             method: 'POST',
             body: JSON.stringify({
                 kategori: document.getElementById('budget-kategori').value,
-                target_nominal: Number(document.getElementById('budget-target').value),
+                target_nominal: getAngka('budget-target'),
                 bulan: now.getMonth() + 1,
                 tahun: now.getFullYear()
             })
@@ -973,7 +1032,7 @@ function editSavings(uuid) {
 
     document.getElementById('savings-edit-uuid').value = uuid;
     document.getElementById('savings-nama').value = goal.nama_target;
-    document.getElementById('savings-target').value = goal.target_nominal;
+    setAngka('savings-target', goal.target_nominal);
     document.getElementById('savings-tanggal').value = goal.target_tanggal || '';
     document.getElementById('savings-sheet-title').textContent = 'Edit Target Tabungan';
     openSheet('sheet-add-savings');
@@ -1003,7 +1062,7 @@ document.getElementById('form-add-savings').addEventListener('submit', async (e)
         const editUuid = document.getElementById('savings-edit-uuid').value;
         const payload = {
             nama_target: document.getElementById('savings-nama').value,
-            target_nominal: Number(document.getElementById('savings-target').value),
+            target_nominal: getAngka('savings-target'),
             target_tanggal: document.getElementById('savings-tanggal').value || null
         };
 
@@ -1031,7 +1090,7 @@ document.getElementById('form-deposit-savings').addEventListener('submit', async
         const res = await apiCall(`/savings/${goalUuid}/deposit`, {
             method: 'POST',
             body: JSON.stringify({
-                nominal: Number(document.getElementById('deposit-nominal').value),
+                nominal: getAngka('deposit-nominal'),
                 tanggal: document.getElementById('deposit-tanggal').value,
                 account_id: accountId ? Number(accountId) : null
             })
@@ -1520,7 +1579,7 @@ function editShoppingItem(itemId) {
     document.getElementById('shopping-item-edit-id').value = itemId;
     document.getElementById('shopping-item-nama').value = item.nama_barang;
     document.getElementById('shopping-item-jumlah').value = item.jumlah || '';
-    document.getElementById('shopping-item-harga').value = item.estimasi_harga || '';
+    setAngka('shopping-item-harga', item.estimasi_harga || '');
     document.getElementById('shopping-item-sheet-title').textContent = 'Edit Barang';
     openSheet('sheet-add-shopping-item');
 }
@@ -1560,7 +1619,7 @@ document.getElementById('form-add-shopping-item').addEventListener('submit', asy
         const payload = {
             nama_barang: document.getElementById('shopping-item-nama').value,
             jumlah: document.getElementById('shopping-item-jumlah').value || null,
-            estimasi_harga: Number(document.getElementById('shopping-item-harga').value) || 0
+            estimasi_harga: getAngka('shopping-item-harga')
         };
 
         if (editId) {
@@ -1641,7 +1700,7 @@ function editBill(billId) {
 
     document.getElementById('bill-edit-id').value = billId;
     document.getElementById('bill-nama').value = bill.nama_tagihan;
-    document.getElementById('bill-nominal').value = bill.nominal || '';
+    setAngka('bill-nominal', bill.nominal || '');
     document.getElementById('bill-tanggal').value = bill.tanggal_jatuh_tempo;
     document.getElementById('bill-reminder').value = bill.pengingat_hari_sebelum;
     document.getElementById('bill-sheet-title').textContent = 'Edit Tagihan Rutin';
@@ -1660,7 +1719,7 @@ async function deleteBill(billId) {
 
 function openPayBillSheet(billId, nominalDefault) {
     document.getElementById('pay-bill-id').value = billId;
-    document.getElementById('pay-bill-nominal').value = nominalDefault || '';
+    setAngka('pay-bill-nominal', nominalDefault || '');
     const options = '<option value="">Tidak mengurangi saldo rekening</option>' +
         state.accounts.map(a => `<option value="${a.id}">${a.nama_rekening}</option>`).join('');
     document.getElementById('pay-bill-account').innerHTML = options;
@@ -1673,7 +1732,7 @@ document.getElementById('form-add-bill').addEventListener('submit', async (e) =>
         const editId = document.getElementById('bill-edit-id').value;
         const payload = {
             nama_tagihan: document.getElementById('bill-nama').value,
-            nominal: Number(document.getElementById('bill-nominal').value) || null,
+            nominal: getAngka('bill-nominal') || null,
             tanggal_jatuh_tempo: Number(document.getElementById('bill-tanggal').value),
             pengingat_hari_sebelum: Number(document.getElementById('bill-reminder').value) || 3
         };
@@ -1702,7 +1761,7 @@ document.getElementById('form-pay-bill').addEventListener('submit', async (e) =>
         await apiCall(`/bills/${billId}/pay`, {
             method: 'POST',
             body: JSON.stringify({
-                nominal: Number(document.getElementById('pay-bill-nominal').value),
+                nominal: getAngka('pay-bill-nominal'),
                 tanggal_bayar: document.getElementById('pay-bill-tanggal').value,
                 account_id: accountId ? Number(accountId) : null
             })
@@ -1800,7 +1859,7 @@ function editDebt(uuid) {
     document.getElementById('debt-tipe').value = debt.tipe;
     document.getElementById('debt-tipe').disabled = true;
     document.getElementById('debt-pihak').value = debt.nama_pihak;
-    document.getElementById('debt-nominal').value = debt.nominal_total;
+    setAngka('debt-nominal', debt.nominal_total);
     document.getElementById('debt-nominal').disabled = true;
     document.getElementById('debt-mulai').value = debt.tanggal_mulai;
     document.getElementById('debt-mulai').disabled = true;
@@ -1851,7 +1910,7 @@ document.getElementById('form-add-debt').addEventListener('submit', async (e) =>
                 body: JSON.stringify({
                     tipe: document.getElementById('debt-tipe').value,
                     nama_pihak: document.getElementById('debt-pihak').value,
-                    nominal_total: Number(document.getElementById('debt-nominal').value),
+                    nominal_total: getAngka('debt-nominal'),
                     tanggal_mulai: document.getElementById('debt-mulai').value,
                     jatuh_tempo: document.getElementById('debt-jatuh-tempo').value || null,
                     catatan: document.getElementById('debt-catatan').value || null
@@ -1877,7 +1936,7 @@ document.getElementById('form-pay-debt').addEventListener('submit', async (e) =>
         const res = await apiCall(`/debts/${debtUuid}/payment`, {
             method: 'POST',
             body: JSON.stringify({
-                nominal: Number(document.getElementById('pay-debt-nominal').value),
+                nominal: getAngka('pay-debt-nominal'),
                 tanggal: document.getElementById('pay-debt-tanggal').value,
                 account_id: accountId ? Number(accountId) : null
             })
@@ -1982,7 +2041,7 @@ document.getElementById('form-transfer').addEventListener('submit', async (e) =>
             body: JSON.stringify({
                 from_account_id: Number(fromId),
                 to_account_id: Number(toId),
-                nominal: Number(document.getElementById('transfer-nominal').value),
+                nominal: getAngka('transfer-nominal'),
                 tanggal: document.getElementById('transfer-tanggal').value,
                 catatan: document.getElementById('transfer-catatan').value || null
             })
@@ -2305,7 +2364,7 @@ function editInventory(uuid) {
     document.getElementById('inv-edit-uuid').value = uuid;
     document.getElementById('inv-nama').value = item.nama_barang;
     document.getElementById('inv-lokasi').value = item.lokasi || '';
-    document.getElementById('inv-harga').value = item.harga_beli || '';
+    setAngka('inv-harga', item.harga_beli || '');
     document.getElementById('inv-harga').disabled = true;
     document.getElementById('inv-tanggal-beli').value = item.tanggal_beli || '';
     document.getElementById('inv-tanggal-beli').disabled = true;
@@ -2332,7 +2391,7 @@ document.getElementById('form-add-inventory').addEventListener('submit', async (
         const payload = {
             nama_barang: document.getElementById('inv-nama').value,
             lokasi: document.getElementById('inv-lokasi').value || null,
-            harga_beli: Number(document.getElementById('inv-harga').value) || null,
+            harga_beli: getAngka('inv-harga') || null,
             tanggal_beli: document.getElementById('inv-tanggal-beli').value || null,
             garansi_sampai: document.getElementById('inv-garansi').value || null
         };
@@ -2986,6 +3045,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Terapkan tema tersimpan (sebelum login pun sudah bisa diterapkan)
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+
+    // Terapkan preferensi sembunyikan saldo tersimpan
+    updateSaldoToggleIcon();
 
     if (state.token && state.user) {
         afterLogin();

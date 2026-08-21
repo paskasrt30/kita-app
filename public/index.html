@@ -129,7 +129,10 @@
         </div>
 
         <div class="balance-card">
-            <div class="balance-label">Total Saldo Rumah Tangga</div>
+            <div class="flex-between">
+                <div class="balance-label">Total Saldo Rumah Tangga</div>
+                <button type="button" class="btn-icon" id="btn-toggle-saldo" onclick="toggleSaldoVisibility()" style="width:32px;height:32px;font-size:16px;">👁️</button>
+            </div>
             <div class="balance-amount" id="dash-total-saldo">Rp 0</div>
             <div class="balance-row">
                 <div class="balance-stat">
@@ -141,6 +144,14 @@
                     <div class="stat-value" id="dash-pengeluaran">Rp 0</div>
                 </div>
             </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Jadwal Hari Ini</h2>
+                <span class="see-all" onclick="navigateTo('page-calendar')">Lihat semua</span>
+            </div>
+            <div id="dash-jadwal"><div class="empty-state"><div class="emoji">📅</div><p>Tidak ada jadwal hari ini</p></div></div>
         </div>
 
         <div class="section">
@@ -700,7 +711,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Saldo Awal</label>
-                    <input type="number" class="form-input" id="account-saldo" placeholder="0" required>
+                    <input type="text" inputmode="numeric" class="form-input" id="account-saldo" placeholder="0" required oninput="formatAngkaInput(this)">
                 </div>
                 <button type="submit" class="btn btn-primary btn-block">Simpan Rekening</button>
             </form>
@@ -721,7 +732,7 @@
                 <div class="form-group">
                     <label class="form-label">Nominal</label>
                     <div class="flex gap-sm">
-                        <input type="number" class="form-input" id="expense-nominal" placeholder="0" required style="flex:1;">
+                        <input type="text" inputmode="numeric" class="form-input" id="expense-nominal" placeholder="0" required style="flex:1;" oninput="formatAngkaInput(this)">
                         <button type="button" class="btn-icon" style="width:44px;height:44px;font-size:18px;flex-shrink:0;background:var(--color-bg-alt);" onclick="openCalculatorSheet('expense-nominal')">🧮</button>
                     </div>
                 </div>
@@ -770,7 +781,7 @@
                 <div class="form-group">
                     <label class="form-label">Nominal</label>
                     <div class="flex gap-sm">
-                        <input type="number" class="form-input" id="income-nominal" placeholder="0" required style="flex:1;">
+                        <input type="text" inputmode="numeric" class="form-input" id="income-nominal" placeholder="0" required style="flex:1;" oninput="formatAngkaInput(this)">
                         <button type="button" class="btn-icon" style="width:44px;height:44px;font-size:18px;flex-shrink:0;background:var(--color-bg-alt);" onclick="openCalculatorSheet('income-nominal')">🧮</button>
                     </div>
                 </div>
@@ -818,7 +829,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Target Nominal / Bulan</label>
-                    <input type="number" class="form-input" id="budget-target" placeholder="0" required>
+                    <input type="text" inputmode="numeric" class="form-input" id="budget-target" placeholder="0" required oninput="formatAngkaInput(this)">
                 </div>
                 <button type="submit" class="btn btn-primary btn-block">Simpan Anggaran</button>
             </form>
@@ -838,7 +849,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Target Nominal</label>
-                    <input type="number" class="form-input" id="savings-target" placeholder="0" required>
+                    <input type="text" inputmode="numeric" class="form-input" id="savings-target" placeholder="0" required oninput="formatAngkaInput(this)">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Target Tanggal (opsional)</label>
@@ -858,7 +869,7 @@
                 <input type="hidden" id="deposit-goal-uuid">
                 <div class="form-group">
                     <label class="form-label">Nominal Setoran</label>
-                    <input type="number" class="form-input" id="deposit-nominal" placeholder="0" required>
+                    <input type="text" inputmode="numeric" class="form-input" id="deposit-nominal" placeholder="0" required oninput="formatAngkaInput(this)">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Ambil dari Rekening (opsional)</label>
@@ -963,7 +974,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Estimasi Harga (opsional)</label>
-                    <input type="number" class="form-input" id="shopping-item-harga" placeholder="0">
+                    <input type="text" inputmode="numeric" class="form-input" id="shopping-item-harga" placeholder="0" oninput="formatAngkaInput(this)">
                 </div>
                 <button type="submit" class="btn btn-primary btn-block">Tambah ke Daftar</button>
             </form>
@@ -983,7 +994,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Nominal (opsional, bisa beda tiap bulan)</label>
-                    <input type="number" class="form-input" id="bill-nominal" placeholder="0">
+                    <input type="text" inputmode="numeric" class="form-input" id="bill-nominal" placeholder="0" oninput="formatAngkaInput(this)">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Tanggal Jatuh Tempo (1-31)</label>
@@ -1007,7 +1018,7 @@
                 <input type="hidden" id="pay-bill-id">
                 <div class="form-group">
                     <label class="form-label">Nominal Dibayar</label>
-                    <input type="number" class="form-input" id="pay-bill-nominal" placeholder="0" required>
+                    <input type="text" inputmode="numeric" class="form-input" id="pay-bill-nominal" placeholder="0" required oninput="formatAngkaInput(this)">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Bayar dari Rekening (opsional)</label>
@@ -1044,7 +1055,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Nominal Total</label>
-                    <input type="number" class="form-input" id="debt-nominal" placeholder="0" required>
+                    <input type="text" inputmode="numeric" class="form-input" id="debt-nominal" placeholder="0" required oninput="formatAngkaInput(this)">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Tanggal Mulai</label>
@@ -1072,7 +1083,7 @@
                 <input type="hidden" id="pay-debt-uuid">
                 <div class="form-group">
                     <label class="form-label">Nominal</label>
-                    <input type="number" class="form-input" id="pay-debt-nominal" placeholder="0" required>
+                    <input type="text" inputmode="numeric" class="form-input" id="pay-debt-nominal" placeholder="0" required oninput="formatAngkaInput(this)">
                 </div>
                 <div class="form-group">
                     <label class="form-label" id="pay-debt-account-label">Rekening (opsional)</label>
@@ -1105,7 +1116,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Nominal</label>
-                    <input type="number" class="form-input" id="transfer-nominal" placeholder="0" required>
+                    <input type="text" inputmode="numeric" class="form-input" id="transfer-nominal" placeholder="0" required oninput="formatAngkaInput(this)">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Tanggal</label>
@@ -1145,7 +1156,7 @@
                 <input type="hidden" id="inv-edit-uuid">
                 <div class="form-group"><label class="form-label">Nama Barang</label><input type="text" class="form-input" id="inv-nama" placeholder="Contoh: TV, Kulkas" required></div>
                 <div class="form-group"><label class="form-label">Lokasi</label><input type="text" class="form-input" id="inv-lokasi" placeholder="Contoh: Ruang Tamu"></div>
-                <div class="form-group"><label class="form-label">Harga Beli</label><input type="number" class="form-input" id="inv-harga" placeholder="0"></div>
+                <div class="form-group"><label class="form-label">Harga Beli</label><input type="text" inputmode="numeric" class="form-input" id="inv-harga" placeholder="0" oninput="formatAngkaInput(this)"></div>
                 <div class="form-group"><label class="form-label">Tanggal Beli</label><input type="date" class="form-input" id="inv-tanggal-beli"></div>
                 <div class="form-group"><label class="form-label">Garansi Sampai (opsional)</label><input type="date" class="form-input" id="inv-garansi"></div>
                 <button type="submit" class="btn btn-primary btn-block">Simpan</button>
