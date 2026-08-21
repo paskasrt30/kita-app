@@ -502,20 +502,25 @@ function renderDashboard(d) {
     document.getElementById('dash-pemasukan').textContent = maskRupiah(d.total_pemasukan_bulan_ini);
     document.getElementById('dash-pengeluaran').textContent = maskRupiah(d.total_pengeluaran_bulan_ini);
 
-    // Jadwal kalender hari ini
+    // Jadwal kalender hari ini s.d. 2 minggu ke depan
     const jadwalEl = document.getElementById('dash-jadwal');
     if (d.jadwal_hari_ini.length === 0) {
-        jadwalEl.innerHTML = '<div class="empty-state"><div class="emoji">📅</div><p>Tidak ada jadwal hari ini</p></div>';
+        jadwalEl.innerHTML = '<div class="empty-state"><div class="emoji">📅</div><p>Tidak ada jadwal dalam 2 minggu ke depan</p></div>';
     } else {
-        jadwalEl.innerHTML = d.jadwal_hari_ini.map(ev => `
-            <div class="list-item">
-                <div class="list-item-icon" style="background:#E4F2FF;">${TIPE_ICON_CAL[ev.tipe] || '📌'}</div>
-                <div class="list-item-body">
-                    <div class="list-item-title">${ev.judul}</div>
-                    <div class="list-item-subtitle">${new Date(ev.tanggal_mulai).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}${ev.lokasi ? ' · ' + ev.lokasi : ''}</div>
+        jadwalEl.innerHTML = d.jadwal_hari_ini.map(ev => {
+            const isToday = ev.tanggal_mulai.slice(0, 10) === todayISO();
+            const tanggalLabel = isToday ? 'Hari ini' : formatTanggal(ev.tanggal_mulai);
+            const jamLabel = new Date(ev.tanggal_mulai).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            return `
+                <div class="list-item">
+                    <div class="list-item-icon" style="background:#E4F2FF;">${TIPE_ICON_CAL[ev.tipe] || '📌'}</div>
+                    <div class="list-item-body">
+                        <div class="list-item-title">${ev.judul}</div>
+                        <div class="list-item-subtitle">${tanggalLabel} · ${jamLabel}${ev.lokasi ? ' · ' + ev.lokasi : ''}</div>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     // Todos

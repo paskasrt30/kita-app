@@ -71,11 +71,12 @@ router.get('/', async (req, res) => {
         LIMIT 5
     `).all(coupleId);
 
-    // ---- Jadwal hari ini ----
+    // ---- Jadwal hari ini s.d. 2 minggu ke depan ----
     const jadwalHariIni = await db.prepare(`
         SELECT * FROM calendar_events
-        WHERE couple_id = ? AND tanggal_mulai::date = CURRENT_DATE
+        WHERE couple_id = ? AND tanggal_mulai::date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days'
         ORDER BY tanggal_mulai ASC
+        LIMIT 5
     `).all(coupleId);
 
     // ---- Aktivitas pasangan terbaru (5 transaksi terakhir dari pasangan) ----
