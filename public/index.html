@@ -173,13 +173,6 @@
             </div>
             <div id="dash-savings"><div class="empty-state"><div class="emoji">🐷</div><p>Belum ada target tabungan</p></div></div>
         </div>
-
-        <div class="section">
-            <div class="section-header">
-                <h2>Aktivitas Pasangan</h2>
-            </div>
-            <div id="dash-activity"><div class="empty-state"><div class="emoji">💬</div><p>Belum ada aktivitas terbaru</p></div></div>
-        </div>
     </div>
 
     <!-- ==================== REKENING ==================== -->
@@ -559,6 +552,17 @@
             <div class="toggle-switch" id="toggle-theme" onclick="toggleTheme()"></div>
         </div>
 
+        <div class="section-header mt-md"><h2>Privasi</h2></div>
+        <div class="settings-row">
+            <span>Kunci Privasi Saldo</span>
+            <div class="toggle-switch" id="toggle-privacy-lock" onclick="togglePrivacyLock()"></div>
+        </div>
+        <div class="settings-row" id="row-change-pin" style="display:none;">
+            <span>Ubah PIN</span>
+            <button type="button" class="btn btn-secondary" onclick="changePrivacyPin()" style="padding:6px 16px;">Ubah</button>
+        </div>
+        <p class="text-muted" style="font-size:12px; padding:0 4px;">Saat aktif, angka saldo di beranda disembunyikan dan butuh PIN untuk ditampilkan.</p>
+
         <div class="section-header mt-md"><h2>Notifikasi</h2></div>
         <div class="settings-row">
             <span>Notifikasi Push</span>
@@ -681,6 +685,25 @@
                 <button type="button" class="calc-btn" onclick="calcDigit('.')">.</button>
             </div>
             <button type="button" class="btn btn-primary btn-block mt-md" onclick="calcConfirm()">✓ Gunakan Hasil</button>
+        </div>
+    </div>
+
+    <!-- Sheet kunci privasi: input PIN untuk menampilkan/mengatur PIN saldo -->
+    <div class="sheet-overlay" id="sheet-privacy-pin" onclick="closeSheetOnOverlay(event, 'sheet-privacy-pin')">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <h3 class="sheet-title" id="privacy-pin-title">Masukkan PIN</h3>
+            <p class="text-muted" id="privacy-pin-desc" style="font-size:13px; margin-top:-8px; margin-bottom:16px;">Masukkan PIN untuk menampilkan saldo</p>
+            <div id="privacy-pin-error" class="error-banner hidden"></div>
+            <form id="form-privacy-pin">
+                <div class="form-group">
+                    <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" class="form-input" id="privacy-pin-input" placeholder="••••" style="text-align:center; font-size:26px; letter-spacing:10px;" autocomplete="off">
+                </div>
+                <div class="form-group hidden" id="privacy-pin-confirm-group">
+                    <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" class="form-input" id="privacy-pin-confirm-input" placeholder="Ulangi PIN" style="text-align:center; font-size:26px; letter-spacing:10px;" autocomplete="off">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Konfirmasi</button>
+            </form>
         </div>
     </div>
 

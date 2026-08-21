@@ -31,25 +31,141 @@ function formatRupiah(nominal) {
     return 'Rp ' + Number(nominal || 0).toLocaleString('id-ID');
 }
 
+// ============================================
+// KUNCI PRIVASI SALDO
+// ============================================
 // Sembunyikan angka nominal di beranda (mis. saat layar dilihat orang lain).
 // Preferensi disimpan di localStorage supaya tetap tersembunyi walau app dimuat ulang.
-let saldoHidden = localStorage.getItem('saldoHidden') === 'true';
+// Kalau kunci privasi (PIN) aktif, saldo selalu mulai tersembunyi tiap app dibuka,
+// dan menampilkannya kembali butuh PIN yang benar.
+let privacyLockEnabled = localStorage.getItem('privacyLockEnabled') === 'true';
+let saldoHidden = privacyLockEnabled || localStorage.getItem('saldoHidden') === 'true';
 
 function maskRupiah(nominal) {
     return saldoHidden ? 'Rp ••••••' : formatRupiah(nominal);
 }
 
-function updateSaldoToggleIcon() {
-    const btn = document.getElementById('btn-toggle-saldo');
-    if (btn) btn.textContent = saldoHidden ? '🙈' : '👁️';
+function hasPrivacyPin() {
+    return !!localStorage.getItem('privacyPinHash');
 }
 
-function toggleSaldoVisibility() {
-    saldoHidden = !saldoHidden;
-    localStorage.setItem('saldoHidden', saldoHidden);
+function updateSaldoToggleIcon() {
+    const btn = document.getElementById('btn-toggle-saldo');
+    if (!btn) return;
+    if (!saldoHidden) btn.textContent = '👁️';
+    else btn.textContent = (privacyLockEnabled && hasPrivacyPin()) ? '🔒' : '🙈';
+}
+
+function setSaldoHidden(hidden) {
+    saldoHidden = hidden;
+    localStorage.setItem('saldoHidden', String(hidden));
     updateSaldoToggleIcon();
     if (lastDashboardData) renderDashboard(lastDashboardData);
 }
+
+function toggleSaldoVisibility() {
+    if (!saldoHidden) {
+        setSaldoHidden(true);
+        return;
+    }
+    if (privacyLockEnabled && hasPrivacyPin()) {
+        openPrivacyPinSheet('verify', () => setSaldoHidden(false));
+    } else {
+        setSaldoHidden(false);
+    }
+}
+
+async function hashPin(pin) {
+    const data = new TextEncoder().encode(pin);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+let privacyPinMode = null; // 'verify' | 'setup'
+let privacyPinOnSuccess = null;
+
+function openPrivacyPinSheet(mode, onSuccess) {
+    privacyPinMode = mode;
+    privacyPinOnSuccess = onSuccess;
+    document.getElementById('privacy-pin-error').classList.add('hidden');
+    document.getElementById('privacy-pin-input').value = '';
+    document.getElementById('privacy-pin-confirm-input').value = '';
+    document.getElementById('privacy-pin-confirm-group').classList.toggle('hidden', mode !== 'setup');
+    document.getElementById('privacy-pin-title').textContent = mode === 'setup' ? 'Buat PIN Baru' : 'Masukkan PIN';
+    document.getElementById('privacy-pin-desc').textContent = mode === 'setup'
+        ? 'Buat PIN 4-6 digit untuk mengunci saldo'
+        : 'Masukkan PIN untuk menampilkan saldo';
+    openSheet('sheet-privacy-pin');
+    setTimeout(() => document.getElementById('privacy-pin-input').focus(), 100);
+}
+
+function togglePrivacyLock() {
+    const toggle = document.getElementById('toggle-privacy-lock');
+    const turningOn = !toggle.classList.contains('on');
+
+    if (turningOn) {
+        openPrivacyPinSheet('setup', () => {
+            privacyLockEnabled = true;
+            localStorage.setItem('privacyLockEnabled', 'true');
+            toggle.classList.add('on');
+            document.getElementById('row-change-pin').style.display = '';
+            setSaldoHidden(true);
+        });
+    } else {
+        openPrivacyPinSheet('verify', () => {
+            privacyLockEnabled = false;
+            localStorage.removeItem('privacyLockEnabled');
+            localStorage.removeItem('privacyPinHash');
+            toggle.classList.remove('on');
+            document.getElementById('row-change-pin').style.display = 'none';
+            updateSaldoToggleIcon();
+        });
+    }
+}
+
+function changePrivacyPin() {
+    openPrivacyPinSheet('verify', () => {
+        openPrivacyPinSheet('setup', () => {
+            alert('PIN berhasil diubah');
+        });
+    });
+}
+
+document.getElementById('form-privacy-pin').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('privacy-pin-error');
+    errEl.classList.add('hidden');
+    const pin = document.getElementById('privacy-pin-input').value;
+
+    if (!/^\d{4,6}$/.test(pin)) {
+        errEl.textContent = 'PIN harus 4-6 digit angka';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    if (privacyPinMode === 'setup') {
+        const confirmPin = document.getElementById('privacy-pin-confirm-input').value;
+        if (pin !== confirmPin) {
+            errEl.textContent = 'Konfirmasi PIN tidak sama';
+            errEl.classList.remove('hidden');
+            return;
+        }
+        localStorage.setItem('privacyPinHash', await hashPin(pin));
+        closeSheet('sheet-privacy-pin');
+        if (privacyPinOnSuccess) privacyPinOnSuccess();
+    } else {
+        const hash = await hashPin(pin);
+        if (hash !== localStorage.getItem('privacyPinHash')) {
+            errEl.textContent = 'PIN salah, coba lagi';
+            errEl.classList.remove('hidden');
+            document.getElementById('privacy-pin-input').value = '';
+            document.getElementById('privacy-pin-input').focus();
+            return;
+        }
+        closeSheet('sheet-privacy-pin');
+        if (privacyPinOnSuccess) privacyPinOnSuccess();
+    }
+});
 
 function formatTanggal(dateStr) {
     const d = new Date(dateStr);
@@ -576,23 +692,6 @@ function renderDashboard(d) {
                 </div>
                 <div class="progress-track"><div class="progress-fill" style="width:${Math.min(s.progress_persen || 0, 100)}%"></div></div>
                 <div class="text-muted mt-md" style="font-size:12px;">${maskRupiah(s.nominal_terkumpul)} dari ${maskRupiah(s.target_nominal)}</div>
-            </div>
-        `).join('');
-    }
-
-    // Activity
-    const activityEl = document.getElementById('dash-activity');
-    if (d.aktivitas_pasangan.length === 0) {
-        activityEl.innerHTML = '<div class="empty-state"><div class="emoji">💬</div><p>Belum ada aktivitas terbaru</p></div>';
-    } else {
-        activityEl.innerHTML = d.aktivitas_pasangan.map(a => `
-            <div class="list-item">
-                <div class="list-item-icon" style="background:${a.tipe === 'pemasukan' ? '#E3F7EC' : '#FFDCE3'};">${a.tipe === 'pemasukan' ? '💰' : '💸'}</div>
-                <div class="list-item-body">
-                    <div class="list-item-title">${a.nama_user} mencatat ${a.tipe}</div>
-                    <div class="list-item-subtitle">${KATEGORI_LABELS[a.detail] || SUMBER_LABELS[a.detail] || a.detail || '-'}</div>
-                </div>
-                <div class="list-item-value ${a.tipe === 'pemasukan' ? 'income' : 'expense'}">${maskRupiah(a.nominal)}</div>
             </div>
         `).join('');
     }
@@ -2804,6 +2903,9 @@ async function loadSettings() {
         document.getElementById('toggle-theme').classList.toggle('on', settings.tema === 'dark');
         document.getElementById('toggle-notif-push').classList.toggle('on', !!settings.notifikasi_push);
         document.getElementById('toggle-notif-email').classList.toggle('on', !!settings.notifikasi_email);
+
+        document.getElementById('toggle-privacy-lock').classList.toggle('on', privacyLockEnabled);
+        document.getElementById('row-change-pin').style.display = privacyLockEnabled ? '' : 'none';
 
         document.getElementById('settings-nama').textContent = me.nama;
         document.getElementById('settings-email').textContent = me.email;

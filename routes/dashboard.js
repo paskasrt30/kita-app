@@ -82,18 +82,6 @@ router.get('/', async (req, res) => {
         LIMIT 5
     `).all(coupleId);
 
-    // ---- Aktivitas pasangan terbaru (5 transaksi terakhir dari pasangan) ----
-    const aktivitasPasangan = await db.prepare(`
-        SELECT 'pengeluaran' as tipe, e.nominal, e.kategori as detail, e.tanggal, u.nama as nama_user, e.created_at
-        FROM expenses e JOIN users u ON e.user_id = u.id
-        WHERE e.couple_id = ? AND e.user_id != ?
-        UNION ALL
-        SELECT 'pemasukan' as tipe, i.nominal, i.sumber as detail, i.tanggal, u.nama as nama_user, i.created_at
-        FROM income i JOIN users u ON i.user_id = u.id
-        WHERE i.couple_id = ? AND i.user_id != ?
-        ORDER BY created_at DESC LIMIT 5
-    `).all(coupleId, req.user.id, coupleId, req.user.id);
-
     res.json({
         status: 'success',
         data: {
@@ -105,8 +93,7 @@ router.get('/', async (req, res) => {
             target_tabungan: savingsGoals,
             tagihan_jatuh_tempo: bills,
             todos_hari_ini: todosHariIni,
-            jadwal_hari_ini: jadwalHariIni,
-            aktivitas_pasangan: aktivitasPasangan
+            jadwal_hari_ini: jadwalHariIni
         }
     });
     } catch (err) {

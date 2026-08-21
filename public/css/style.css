@@ -213,6 +213,14 @@ a { text-decoration: none; color: inherit; }
     position: relative;
 }
 
+/* .balance-card::before adalah lingkaran dekoratif absolute di pojok kanan-atas;
+   tanpa position:relative di sini, tombol toggle saldo tertutup lingkaran itu
+   dan klik-nya tidak pernah sampai ke tombol. */
+#btn-toggle-saldo {
+    position: relative;
+    z-index: 1;
+}
+
 .balance-amount {
     font-family: var(--font-number);
     font-size: 32px;
