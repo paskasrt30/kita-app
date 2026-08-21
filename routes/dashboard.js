@@ -31,6 +31,9 @@ router.get('/', async (req, res) => {
     `).get(coupleId, bulanIni, tahunIni);
     const totalPengeluaran = totalPengeluaranRow.total;
 
+    // ---- Sisa saldo bulan ini (selisih pemasukan - pengeluaran bulan berjalan) ----
+    const sisaSaldoBulanIni = totalPemasukan - totalPengeluaran;
+
     // ---- Sisa anggaran (total target - total realisasi bulan ini) ----
     const totalTargetAnggaranRow = await db.prepare(`
         SELECT COALESCE(SUM(target_nominal), 0) as total FROM budgets
@@ -97,6 +100,7 @@ router.get('/', async (req, res) => {
             total_saldo: totalSaldo,
             total_pemasukan_bulan_ini: totalPemasukan,
             total_pengeluaran_bulan_ini: totalPengeluaran,
+            sisa_saldo_bulan_ini: sisaSaldoBulanIni,
             sisa_anggaran: sisaAnggaran,
             target_tabungan: savingsGoals,
             tagihan_jatuh_tempo: bills,

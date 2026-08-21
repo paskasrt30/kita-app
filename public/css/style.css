@@ -246,6 +246,31 @@ a { text-decoration: none; color: inherit; }
     margin-top: 2px;
 }
 
+.balance-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.25);
+    margin: var(--space-md) 0;
+    position: relative;
+}
+
+.balance-sisa {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+}
+
+.balance-sisa .stat-label { font-size: 13px; opacity: 0.85; }
+
+.balance-sisa .stat-value {
+    font-family: var(--font-number);
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.balance-sisa .stat-value.positive { color: var(--color-shared); }
+.balance-sisa .stat-value.negative { color: var(--color-danger); }
+
 /* ============================================
    GRID BENTO — dashboard sections
    ============================================ */
@@ -759,12 +784,12 @@ a { text-decoration: none; color: inherit; }
     margin-bottom: var(--space-lg);
 }
 
-.auth-logo .logo-circles { display: flex; }
-.auth-logo .logo-circle {
-    width: 56px; height: 56px; border-radius: 50%;
+.auth-logo-img {
+    width: 88px;
+    height: 88px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
 }
-.auth-logo .logo-circle.a { background: var(--color-partner-a); }
-.auth-logo .logo-circle.b { background: var(--color-partner-b); margin-left: -20px; }
 
 .auth-title {
     text-align: center;

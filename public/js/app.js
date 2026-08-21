@@ -502,6 +502,11 @@ function renderDashboard(d) {
     document.getElementById('dash-pemasukan').textContent = maskRupiah(d.total_pemasukan_bulan_ini);
     document.getElementById('dash-pengeluaran').textContent = maskRupiah(d.total_pengeluaran_bulan_ini);
 
+    const sisaEl = document.getElementById('dash-sisa-bulan');
+    sisaEl.textContent = maskRupiah(d.sisa_saldo_bulan_ini);
+    sisaEl.classList.toggle('positive', d.sisa_saldo_bulan_ini >= 0);
+    sisaEl.classList.toggle('negative', d.sisa_saldo_bulan_ini < 0);
+
     // Jadwal kalender hari ini s.d. 2 minggu ke depan
     const jadwalEl = document.getElementById('dash-jadwal');
     if (d.jadwal_hari_ini.length === 0) {
