@@ -22,7 +22,7 @@ const SCHEMA_LOCK_KEY = 727100;
 // tidak aman dari race condition kalau dieksekusi bersamaan oleh beberapa cold start
 // (bisa bentrok di katalog sistem Postgres). Advisory lock memastikan cuma satu yang
 // jalanin DDL di satu waktu; yang lain nunggu giliran lalu lanjut (aman krn idempotent).
-const ready = (async () => {
+async function initSchema() {
     const client = await pool.connect();
     try {
         await client.query('SELECT pg_advisory_lock($1)', [SCHEMA_LOCK_KEY]);
@@ -31,8 +31,23 @@ const ready = (async () => {
         await client.query('SELECT pg_advisory_unlock($1)', [SCHEMA_LOCK_KEY]);
         client.release();
     }
-})();
-ready.catch(() => {}); // cegah unhandled rejection men-crash proses; error tetap terlempar ke tiap `await ready` di bawah
+}
+
+// Kalau percobaan koneksi awal gagal (mis. koneksi putus sebelum TLS selesai karena
+// database serverless-nya baru bangun dari auto-suspend), jangan simpan promise yang
+// gagal itu selamanya — di Vercel, satu instance function dipakai ulang utk banyak
+// request, jadi promise yg reject sekali akan bikin SEMUA request berikutnya di
+// instance yg sama ikut gagal terus. Reset supaya request berikutnya coba lagi dari nol.
+let readyPromise = null;
+function ready() {
+    if (!readyPromise) {
+        readyPromise = initSchema().catch((err) => {
+            readyPromise = null;
+            throw err;
+        });
+    }
+    return readyPromise;
+}
 
 function toPgSql(sql) {
     let i = 0;
@@ -50,17 +65,17 @@ function prepare(sql) {
 
     return {
         get: async (...params) => {
-            await ready;
+            await ready();
             const result = await executor().query(text, params);
             return result.rows[0];
         },
         all: async (...params) => {
-            await ready;
+            await ready();
             const result = await executor().query(text, params);
             return result.rows;
         },
         run: async (...params) => {
-            await ready;
+            await ready();
             const result = await executor().query(runText, params);
             return { lastInsertRowid: result.rows[0]?.id, changes: result.rowCount };
         },
@@ -69,7 +84,7 @@ function prepare(sql) {
 
 function transaction(fn) {
     return async (...args) => {
-        await ready;
+        await ready();
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
