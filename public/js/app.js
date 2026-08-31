@@ -209,10 +209,26 @@ async function apiCall(endpoint, options = {}) {
     const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
     const data = await res.json();
 
+    // Token tersimpan sudah tidak valid/kedaluwarsa: paksa balik ke login alih-alih
+    // membiarkan halaman diam-diam gagal load data tanpa penjelasan ke user.
+    if (res.status === 401 && state.token) {
+        sessionExpired();
+    }
+
     if (!res.ok) {
         throw new Error(data.message || 'Terjadi kesalahan');
     }
     return data;
+}
+
+function sessionExpired() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    state.token = null;
+    state.user = null;
+    document.getElementById('bottom-nav').style.display = 'none';
+    showPage('page-login');
+    alert('Sesi kamu sudah berakhir, silakan login kembali.');
 }
 
 // ============================================
